@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use voicegg_core::{ChannelId, Preset, VoiceggConfig};
-use voicegg_pw::AudioDevice;
+use voicegg_pw::{ActiveStream, AudioDevice};
 
 /// Overall system state snapshot returned by the daemon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -11,6 +11,8 @@ pub struct SystemStatus {
     pub config: VoiceggConfig,
     /// Available output and input audio devices.
     pub devices: Vec<AudioDevice>,
+    /// Currently active application playback streams.
+    pub streams: Vec<ActiveStream>,
     /// Active running game name if auto-detected.
     pub active_game: Option<String>,
 }

@@ -7,6 +7,6 @@ pub mod device;
 pub mod error;
 pub mod graph;
 
-pub use device::{AudioDevice, DeviceType};
+pub use device::{ActiveStream, AudioDevice, DeviceType};
 pub use error::{PwError, Result};
 pub use graph::GraphManager;

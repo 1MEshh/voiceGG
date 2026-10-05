@@ -92,6 +92,19 @@ async fn main() -> Result<()> {
                             if muted { "MUTED" } else { "ACTIVE" }
                         );
                     }
+                    if !status.streams.is_empty() {
+                        println!("Active Streams:");
+                        for stream in &status.streams {
+                            let ch = stream
+                                .current_channel
+                                .map(|c| c.display_name())
+                                .unwrap_or("Unassigned");
+                            println!(
+                                "  - [{}] {} ({}) -> {}",
+                                stream.id, stream.app_name, stream.binary_name, ch
+                            );
+                        }
+                    }
                     if let Some(game) = status.active_game {
                         println!("Active Game: {}", game);
                     }
