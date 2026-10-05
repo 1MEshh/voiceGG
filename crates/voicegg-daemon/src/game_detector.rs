@@ -66,8 +66,9 @@ impl GameDetector {
             EMBEDDED_GAMES_TOML.to_string()
         };
 
-        let config: GamesConfig =
-            toml::from_str(&content).unwrap_or_else(|_| GamesConfig { games: HashMap::new() });
+        let config: GamesConfig = toml::from_str(&content).unwrap_or_else(|_| GamesConfig {
+            games: HashMap::new(),
+        });
 
         Self {
             games: config.games,
@@ -157,7 +158,10 @@ mod tests {
     #[test]
     fn test_match_proton_apex() {
         let detector = GameDetector::new();
-        let matched = detector.match_executable("wine64-preloader", "Z:\\SteamLibrary\\steamapps\\common\\Apex Legends\\r5apex.exe\0-anticheat");
+        let matched = detector.match_executable(
+            "wine64-preloader",
+            "Z:\\SteamLibrary\\steamapps\\common\\Apex Legends\\r5apex.exe\0-anticheat",
+        );
         assert!(matched.is_some());
         let game = matched.unwrap();
         assert_eq!(game.id, "apex");

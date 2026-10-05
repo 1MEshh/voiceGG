@@ -86,7 +86,9 @@ impl Preset {
                 "Neutral reference response without frequency coloration",
                 &["flat", "reference", "neutral"],
                 [0.0; 10],
-                0.0, 0.0, 0.0,
+                0.0,
+                0.0,
+                0.0,
             ),
             Self::create_game_preset(
                 "game_cs2",
@@ -94,7 +96,9 @@ impl Preset {
                 "Footstep isolation, bomb defusal cues, and gunshot punch for CS2",
                 &["cs2", "tactical", "footsteps", "fps"],
                 [-3.0, -1.5, 0.0, 0.5, 1.5, 3.0, 4.5, 3.5, 1.0, 0.0],
-                -1.5, 3.0, 2.0,
+                -1.5,
+                3.0,
+                2.0,
             ),
             Self::create_game_preset(
                 "game_apex",
@@ -102,7 +106,9 @@ impl Preset {
                 "Shield cracking, sliding cues, and directional footsteps for Apex",
                 &["apex", "battle_royale", "footsteps", "fps"],
                 [-2.0, -1.0, 0.0, 0.0, 2.0, 4.0, 4.0, 3.0, 1.5, 0.0],
-                -1.0, 3.5, 2.0,
+                -1.0,
+                3.5,
+                2.0,
             ),
             Self::create_game_preset(
                 "game_overwatch2",
@@ -110,7 +116,9 @@ impl Preset {
                 "Character footsteps and ultimate audio cue enhancement",
                 &["overwatch", "hero_shooter", "cues", "fps"],
                 [-1.0, 0.0, 0.5, 1.0, 2.0, 3.5, 4.0, 2.5, 1.0, 0.0],
-                0.0, 3.0, 1.5,
+                0.0,
+                3.0,
+                1.5,
             ),
             Self::create_game_preset(
                 "game_valorant",
@@ -118,7 +126,9 @@ impl Preset {
                 "Precision footstep clarity and ability detection (headphone tuning)",
                 &["valorant", "tactical", "footsteps", "fps"],
                 [-4.0, -2.0, 0.0, 1.0, 2.0, 3.5, 5.0, 4.0, 1.5, 0.0],
-                -2.0, 4.0, 2.5,
+                -2.0,
+                4.0,
+                2.5,
             ),
             Self::create_game_preset(
                 "game_footsteps",
@@ -126,7 +136,9 @@ impl Preset {
                 "Universal footstep isolation by attenuating masking bass rumble",
                 &["footsteps", "competitive", "fps"],
                 [-6.0, -3.0, -1.0, 1.0, 2.5, 4.5, 5.0, 3.0, 1.0, 0.0],
-                -4.0, 4.0, 1.5,
+                -4.0,
+                4.0,
+                1.5,
             ),
             Self::create_game_preset(
                 "game_immersive",
@@ -134,9 +146,10 @@ impl Preset {
                 "Cinematic sub-bass rumble with detailed top-end spatial cues",
                 &["immersive", "cinematic", "bass", "rpg"],
                 [5.0, 4.0, 2.0, 0.0, -1.0, 0.0, 1.5, 2.5, 3.5, 4.0],
-                4.0, 0.0, 3.0,
+                4.0,
+                0.0,
+                3.0,
             ),
-
             // Chat Presets
             Self::create_chat_preset(
                 "chat_clear_voice",
@@ -159,7 +172,6 @@ impl Preset {
                 &["voice", "warm", "smooth"],
                 [0.0, 1.0, 2.0, 1.5, 0.5, 0.0, 1.0, 1.5, 0.0, -1.0],
             ),
-
             // Media Presets
             Self::create_media_preset(
                 "media_music_bass",
@@ -182,7 +194,6 @@ impl Preset {
                 &["movie", "cinema", "wide"],
                 [4.0, 3.0, 1.5, 0.0, 0.0, 1.5, 2.0, 2.5, 3.0, 3.5],
             ),
-
             // Mic Presets
             Self::create_mic_preset(
                 "mic_broadcast",
@@ -220,9 +231,12 @@ impl Preset {
     /// Looks up a built-in preset by its unique ID.
     #[must_use]
     pub fn get_preset_by_id(id: &str) -> Option<Preset> {
-        Self::builtin_presets().into_iter().find(|p| p.id.eq_ignore_ascii_case(id))
+        Self::builtin_presets()
+            .into_iter()
+            .find(|p| p.id.eq_ignore_ascii_case(id))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_game_preset(
         id: &str,
         name: &str,
@@ -308,6 +322,7 @@ impl Preset {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_mic_preset(
         id: &str,
         name: &str,

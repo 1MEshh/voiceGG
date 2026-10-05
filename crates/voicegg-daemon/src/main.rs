@@ -169,7 +169,11 @@ fn smart_classify_app(binary: &str) -> ChannelId {
     }
 
     // Default to Game for gaming launchers and wine
-    if lower.contains("steam") || lower.contains("lutris") || lower.contains("heroic") || lower.contains("wine") {
+    if lower.contains("steam")
+        || lower.contains("lutris")
+        || lower.contains("heroic")
+        || lower.contains("wine")
+    {
         return ChannelId::Game;
     }
 
@@ -240,15 +244,14 @@ async fn main() -> Result<()> {
                     for stream in streams {
                         if stream.current_channel.is_none() {
                             // Find explicit rule
-                            let target = if let Some(rule) = cfg
-                                .routing_rules
-                                .iter()
-                                .find(|r| r.binary_name.eq_ignore_ascii_case(&stream.binary_name))
-                            {
-                                rule.target_channel
-                            } else {
-                                smart_classify_app(&stream.binary_name)
-                            };
+                            let target =
+                                if let Some(rule) = cfg.routing_rules.iter().find(|r| {
+                                    r.binary_name.eq_ignore_ascii_case(&stream.binary_name)
+                                }) {
+                                    rule.target_channel
+                                } else {
+                                    smart_classify_app(&stream.binary_name)
+                                };
 
                             let _ = gm.route_stream(stream.id, target);
                         }

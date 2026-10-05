@@ -6,6 +6,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+echo "==> Building VoiceGG frontend..."
+if [ -d "$ROOT_DIR/app" ]; then
+    (cd "$ROOT_DIR/app" && npm run build)
+fi
+
 echo "==> Building VoiceGG release binaries..."
 cd "$ROOT_DIR"
 cargo build --release
@@ -21,6 +26,9 @@ mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR" "$SYSTEMD_DIR"
 echo "==> Installing binaries to $BIN_DIR..."
 install -m 755 "$ROOT_DIR/target/release/voicegg-daemon" "$BIN_DIR/voicegg-daemon"
 install -m 755 "$ROOT_DIR/target/release/voicegg" "$BIN_DIR/voicegg"
+if [ -f "$ROOT_DIR/target/release/voicegg-gui" ]; then
+    install -m 755 "$ROOT_DIR/target/release/voicegg-gui" "$BIN_DIR/voicegg-gui"
+fi
 install -m 755 "$ROOT_DIR/scripts/voicegg-launcher" "$BIN_DIR/voicegg-launcher"
 
 echo "==> Installing desktop entry and icon..."

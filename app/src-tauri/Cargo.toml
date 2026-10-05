@@ -1,0 +1,25 @@
+[package]
+name = "voicegg-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "VoiceGG Graphical User Interface"
+
+[lib]
+name = "voicegg_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+voicegg-core = { workspace = true }
+voicegg-pw = { workspace = true }
+voicegg-ipc = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+

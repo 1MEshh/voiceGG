@@ -4,10 +4,11 @@
 Cargo.lock
 
 # Node / Web Frontend
-node_modules/
-dist/
-.svelte-kit/
-build/
+**/node_modules/
+**/dist/
+**/.svelte-kit/
+**/build/
+**/gen/schemas/
 
 # Logs & Environment
 *.log

@@ -52,7 +52,8 @@ enum CtlAction {
     },
     /// Set ChatMix balance (-100 to 100).
     Chatmix {
-        /// Balance value.
+        /// Balance value (-100 to 100).
+        #[arg(allow_hyphen_values = true)]
         value: i8,
     },
     /// Route an application to a specific channel.

@@ -97,11 +97,17 @@ impl NoiseSuppressor {
 
         // Process all full 480-sample frames
         while self.input_buffer.len() >= FRAME_SIZE {
-            for (dest, &src) in self.frame_in.iter_mut().zip(&self.input_buffer[..FRAME_SIZE]) {
+            for (dest, &src) in self
+                .frame_in
+                .iter_mut()
+                .zip(&self.input_buffer[..FRAME_SIZE])
+            {
                 *dest = (src * SCALE).clamp(-32768.0, 32767.0);
             }
 
-            let vad = self.state.process_frame(&mut self.frame_out, &self.frame_in);
+            let vad = self
+                .state
+                .process_frame(&mut self.frame_out, &self.frame_in);
             self.vad_probability = vad;
 
             for &sample in &self.frame_out {

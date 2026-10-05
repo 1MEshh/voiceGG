@@ -7,6 +7,7 @@ members = [
     "crates/voicegg-ipc",
     "crates/voicegg-daemon",
     "crates/voicegg-cli",
+    "app/src-tauri",
 ]
 
 [workspace.package]
