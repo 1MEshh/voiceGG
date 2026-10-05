@@ -11,6 +11,7 @@ pub mod eq;
 pub mod gate;
 pub mod limiter;
 pub mod meter;
+pub mod noise;
 
 pub use biquad::{BiquadFilter, BiquadParams};
 pub use compressor::Compressor;
@@ -18,3 +19,4 @@ pub use eq::ParametricEq;
 pub use gate::NoiseGate;
 pub use limiter::Limiter;
 pub use meter::VUMeter;
+pub use noise::NoiseSuppressor;
