@@ -510,6 +510,36 @@ impl GraphManager {
         }
         Ok(())
     }
+
+    /// Sets the volume of a channel sink or source in PipeWire (0 .. 150%).
+    pub fn set_channel_volume(&self, channel: ChannelId, volume: u8) -> Result<()> {
+        let node_name = channel.pipewire_node_name();
+        let vol_str = format!("{volume}%");
+        let cmd = if channel == ChannelId::Mic {
+            "set-source-volume"
+        } else {
+            "set-sink-volume"
+        };
+        let _ = Command::new("pactl")
+            .args([cmd, node_name, &vol_str])
+            .output();
+        Ok(())
+    }
+
+    /// Sets the mute status of a channel sink or source in PipeWire.
+    pub fn set_channel_mute(&self, channel: ChannelId, muted: bool) -> Result<()> {
+        let node_name = channel.pipewire_node_name();
+        let mute_str = if muted { "1" } else { "0" };
+        let cmd = if channel == ChannelId::Mic {
+            "set-source-mute"
+        } else {
+            "set-sink-mute"
+        };
+        let _ = Command::new("pactl")
+            .args([cmd, node_name, mute_str])
+            .output();
+        Ok(())
+    }
 }
 
 impl Drop for GraphManager {

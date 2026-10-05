@@ -1,0 +1,72 @@
+# VoiceGG Game Detection Mapping Table
+# Maps native Linux and Wine/Proton executables to game metadata and default presets.
+
+[games.cs2]
+name = "Counter-Strike 2"
+preset = "game_cs2"
+executables = ["cs2"]
+
+[games.apex]
+name = "Apex Legends"
+preset = "game_apex"
+executables = ["r5apex.exe", "r5apex_dx12.exe"]
+
+[games.overwatch2]
+name = "Overwatch 2"
+preset = "game_overwatch2"
+executables = ["Overwatch.exe"]
+
+[games.valorant]
+name = "Valorant"
+preset = "game_valorant"
+executables = ["VALORANT-Win64-Shipping.exe"]
+
+[games.fortnite]
+name = "Fortnite"
+preset = "game_fortnite"
+executables = ["FortniteClient-Win64-Shipping.exe"]
+
+[games.pubg]
+name = "PUBG: BATTLEGROUNDS"
+preset = "game_pubg"
+executables = ["TslGame.exe"]
+
+[games.rainbowsix]
+name = "Rainbow Six Siege"
+preset = "game_r6"
+executables = ["RainbowSix.exe", "RainbowSix_Vulkan.exe"]
+
+[games.warzone]
+name = "Call of Duty: Warzone"
+preset = "game_warzone"
+executables = ["cod.exe"]
+
+[games.tarkov]
+name = "Escape from Tarkov"
+preset = "game_tarkov"
+executables = ["EscapeFromTarkov.exe"]
+
+[games.finals]
+name = "The Finals"
+preset = "game_finals"
+executables = ["Discovery.exe"]
+
+[games.rust]
+name = "Rust"
+preset = "game_rust"
+executables = ["RustClient.exe"]
+
+[games.dota2]
+name = "Dota 2"
+preset = "game_dota2"
+executables = ["dota2"]
+
+[games.league]
+name = "League of Legends"
+preset = "game_league"
+executables = ["League of Legends.exe"]
+
+[games.minecraft]
+name = "Minecraft"
+preset = "game_minecraft"
+executables = ["java", "javaw.exe"]

@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "id": "mic_streamer",
+  "name": "Aggressive Streamer",
+  "description": "High noise suppression (85%) and tight gate for noisy keyboard environments",
+  "category": "mic",
+  "tags": [
+    "mic",
+    "streamer",
+    "anti_keyboard",
+    "gaming"
+  ],
+  "eq": {
+    "enabled": true,
+    "bands": [
+      {
+        "freq_hz": 32.0,
+        "gain_db": -6.0,
+        "q": 1.0,
+        "filter_type": "low_shelf",
+        "enabled": true
+      },
+      {
+        "freq_hz": 64.0,
+        "gain_db": -3.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 125.0,
+        "gain_db": 0.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 250.0,
+        "gain_db": 0.5,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 500.0,
+        "gain_db": 1.5,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 1000.0,
+        "gain_db": 2.5,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 2000.0,
+        "gain_db": 3.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 4000.0,
+        "gain_db": 2.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 8000.0,
+        "gain_db": 1.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 16000.0,
+        "gain_db": 0.0,
+        "q": 1.0,
+        "filter_type": "high_shelf",
+        "enabled": true
+      }
+    ],
+    "bass_db": -2.0,
+    "voice_db": 2.5,
+    "treble_db": 1.5
+  },
+  "noise_canceller": {
+    "enabled": true,
+    "amount": 85.0,
+    "vad_threshold": 0.5
+  },
+  "compressor": {
+    "enabled": true,
+    "threshold_db": -16.0,
+    "ratio": 4.0,
+    "attack_ms": 5.0,
+    "release_ms": 60.0,
+    "makeup_gain_db": 3.0
+  },
+  "noise_gate": {
+    "enabled": true,
+    "threshold_db": -36.0,
+    "attack_ms": 2.0,
+    "hold_ms": 50.0,
+    "release_ms": 80.0
+  },
+  "limiter": {
+    "enabled": true,
+    "ceiling_db": -1.0,
+    "release_ms": 30.0
+  }
+}

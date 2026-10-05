@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "id": "game_footsteps",
+  "name": "Competitive Footsteps",
+  "description": "Universal footstep isolation by attenuating masking bass rumble",
+  "category": "game",
+  "tags": [
+    "footsteps",
+    "competitive",
+    "fps"
+  ],
+  "eq": {
+    "enabled": true,
+    "bands": [
+      {
+        "freq_hz": 32.0,
+        "gain_db": -6.0,
+        "q": 1.0,
+        "filter_type": "low_shelf",
+        "enabled": true
+      },
+      {
+        "freq_hz": 64.0,
+        "gain_db": -3.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 125.0,
+        "gain_db": -1.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 250.0,
+        "gain_db": 1.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 500.0,
+        "gain_db": 2.5,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 1000.0,
+        "gain_db": 4.5,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 2000.0,
+        "gain_db": 5.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 4000.0,
+        "gain_db": 3.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 8000.0,
+        "gain_db": 1.0,
+        "q": 1.0,
+        "filter_type": "peak",
+        "enabled": true
+      },
+      {
+        "freq_hz": 16000.0,
+        "gain_db": 0.0,
+        "q": 1.0,
+        "filter_type": "high_shelf",
+        "enabled": true
+      }
+    ],
+    "bass_db": -4.0,
+    "voice_db": 4.0,
+    "treble_db": 1.5
+  },
+  "noise_canceller": null,
+  "compressor": null,
+  "noise_gate": null,
+  "limiter": {
+    "enabled": true,
+    "ceiling_db": -6.0,
+    "release_ms": 50.0
+  }
+}
