@@ -2,10 +2,10 @@
 Name=VoiceGG
 GenericName=Audio Mixer & DSP Suite
 Comment=High-performance gaming audio router, parametric EQ, and ChatMix for Arch Linux & Hyprland
-Exec=sh -c "PATH=\"$HOME/.local/bin:$PATH\" WEBKIT_DISABLE_DMABUF_RENDERER=1 exec voicegg-launcher"
+Exec=voicegg-launcher
 Icon=voicegg
 Terminal=false
 Type=Application
-Categories=AudioVideo;Audio;Mixer;Settings;
+Categories=AudioVideo;Audio;Mixer;
 Keywords=audio;mixer;equalizer;sonar;chatmix;pipewire;sound;gaming;
 StartupNotify=true

@@ -31,6 +31,13 @@ if [ -f "$ROOT_DIR/target/release/voicegg-gui" ]; then
 fi
 install -m 755 "$ROOT_DIR/scripts/voicegg-launcher" "$BIN_DIR/voicegg-launcher"
 
+if [ -d "$HOME/.cargo/bin" ] && [ "$BIN_DIR" != "$HOME/.cargo/bin" ]; then
+    ln -sf "$BIN_DIR/voicegg" "$HOME/.cargo/bin/voicegg"
+    ln -sf "$BIN_DIR/voicegg-daemon" "$HOME/.cargo/bin/voicegg-daemon"
+    ln -sf "$BIN_DIR/voicegg-launcher" "$HOME/.cargo/bin/voicegg-launcher"
+    [ -f "$BIN_DIR/voicegg-gui" ] && ln -sf "$BIN_DIR/voicegg-gui" "$HOME/.cargo/bin/voicegg-gui"
+fi
+
 echo "==> Installing desktop entry and icon..."
 install -m 644 "$ROOT_DIR/packaging/voicegg.desktop" "$APP_DIR/voicegg.desktop"
 install -m 644 "$ROOT_DIR/packaging/icons/voicegg.svg" "$ICON_DIR/voicegg.svg"

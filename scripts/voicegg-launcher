@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# Ensure ~/.local/bin is in PATH for user desktop sessions
-export PATH="$HOME/.local/bin:$PATH"
+# Ensure ~/.local/bin and ~/.cargo/bin are in PATH for user desktop sessions
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 # Prevent WebKitGTK DMABUF protocol crash on Wayland
 export WEBKIT_DISABLE_DMABUF_RENDERER=1
