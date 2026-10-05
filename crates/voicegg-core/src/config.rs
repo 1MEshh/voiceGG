@@ -122,3 +122,45 @@ impl Default for VoiceggConfig {
         }
     }
 }
+
+impl VoiceggConfig {
+    /// Returns the standard config file path ($XDG_CONFIG_HOME/voicegg/config.toml).
+    #[must_use]
+    pub fn config_path() -> std::path::PathBuf {
+        let base = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        base.join("voicegg").join("config.toml")
+    }
+
+    /// Loads the configuration from disk, creating default config if it doesn't exist.
+    pub fn load() -> Self {
+        let path = Self::config_path();
+        if path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(config) = toml::from_str::<Self>(&content) {
+                    return config;
+                }
+                // Backup corrupt file and recover gracefully
+                let corrupt_path = path.with_extension("toml.corrupt");
+                let _ = std::fs::rename(&path, corrupt_path);
+            }
+        }
+        let default_config = Self::default();
+        let _ = default_config.save();
+        default_config
+    }
+
+    /// Atomically saves the configuration to disk.
+    pub fn save(&self) -> std::io::Result<()> {
+        let path = Self::config_path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let serialized = toml::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let tmp_path = path.with_extension("toml.tmp");
+        std::fs::write(&tmp_path, serialized)?;
+        std::fs::rename(tmp_path, path)?;
+        Ok(())
+    }
+}
