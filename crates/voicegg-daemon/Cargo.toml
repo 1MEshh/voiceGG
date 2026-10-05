@@ -1,0 +1,17 @@
+[package]
+name = "voicegg-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+voicegg-core = { workspace = true }
+voicegg-dsp = { workspace = true }
+voicegg-pw = { workspace = true }
+voicegg-ipc = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+dirs = { workspace = true }
