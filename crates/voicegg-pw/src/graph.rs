@@ -15,10 +15,62 @@ struct GraphState {
     loaded_modules: Vec<u32>,
 }
 
+/// Directed graph cycle detector to prevent audio feedback loops.
+#[derive(Debug, Default, Clone)]
+pub struct GraphCycleDetector {
+    edges: std::collections::HashMap<String, Vec<String>>,
+}
+
+impl GraphCycleDetector {
+    /// Creates a new cycle detector.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Checks if adding a directed edge `from -> to` would create a cycle.
+    #[must_use]
+    pub fn would_cycle(&self, from: &str, to: &str) -> bool {
+        if from == to {
+            return true;
+        }
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(to.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            if current == from {
+                return true;
+            }
+            if visited.insert(current.clone()) {
+                if let Some(neighbors) = self.edges.get(&current) {
+                    for neighbor in neighbors {
+                        if !visited.contains(neighbor) {
+                            queue.push_back(neighbor.clone());
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Records a directed edge.
+    pub fn add_edge(&mut self, from: String, to: String) {
+        self.edges.entry(from).or_default().push(to);
+    }
+
+    /// Clears all recorded edges.
+    pub fn clear(&mut self) {
+        self.edges.clear();
+    }
+}
+
 /// Manages virtual devices, hardware discovery, and audio routing inside PipeWire.
 pub struct GraphManager {
     initialized: bool,
     state: GraphState,
+    cycle_detector: GraphCycleDetector,
 }
 
 impl Default for GraphManager {
@@ -34,6 +86,7 @@ impl GraphManager {
         Self {
             initialized: false,
             state: GraphState::default(),
+            cycle_detector: GraphCycleDetector::new(),
         }
     }
 
@@ -122,6 +175,13 @@ impl GraphManager {
     }
 
     fn load_loopback(&mut self, source: &str, sink: &str) -> Result<u32> {
+        // SAFETY GUARD: Check for cycles before creating loopback
+        if self.cycle_detector.would_cycle(source, sink) {
+            return Err(PwError::Generic(format!(
+                "Feedback loop prevented: linking '{source}' to '{sink}' would create an audio feedback loop"
+            )));
+        }
+
         let src_arg = format!("source={source}");
         let sink_arg = format!("sink={sink}");
 
@@ -148,6 +208,8 @@ impl GraphManager {
             PwError::Generic(format!("pactl did not return a valid module ID: {out_str}"))
         })?;
 
+        self.cycle_detector
+            .add_edge(source.to_string(), sink.to_string());
         self.state.loaded_modules.push(module_id);
         self.save_state();
         Ok(module_id)
@@ -204,26 +266,25 @@ impl GraphManager {
             let _ = self.load_loopback("voicegg_sink_master.monitor", &target_sink);
         }
 
-        // 6. Link Physical Mic to VoiceGG Mic Source
+        // 6. Link Physical Mic to VoiceGG Mic Source.
+        // SAFETY RULE (PLAN.md §0.3): never use a monitor as a mic — that creates a feedback loop.
         if let Some(mic_source) = self.state.original_default_source.clone() {
-            tracing::info!(
-                "Connecting physical microphone '{}' to VoiceGG Mic",
-                mic_source
-            );
-            let _ = self.load_loopback(&mic_source, "voicegg_source_mic");
+            if mic_source.ends_with(".monitor")
+                || mic_source.starts_with("alsa_output")
+                || mic_source.starts_with("voicegg_")
+            {
+                tracing::warn!("No real microphone found (default source is a monitor/output); Mic channel left empty");
+            } else {
+                tracing::info!(
+                    "Connecting physical microphone '{}' to VoiceGG Mic",
+                    mic_source
+                );
+                let _ = self.load_loopback(&mic_source, "voicegg_source_mic");
+            }
         }
 
-        // 7. Make VoiceGG Media the default sink so new apps route to VoiceGG automatically
-        let _ = Command::new("pactl")
-            .args(["set-default-sink", "voicegg_sink_media"])
-            .output();
-
-        // 8. Make VoiceGG Mic the default source
-        let _ = Command::new("pactl")
-            .args(["set-default-source", "voicegg_source_mic"])
-            .output();
-
-        tracing::info!("VoiceGG virtual devices created and default audio routed successfully.");
+        // System defaults are preserved and NOT hijacked (PLAN.md §0.3 rule 4).
+        tracing::info!("VoiceGG virtual devices created safely. System defaults preserved.");
         Ok(())
     }
 
@@ -254,6 +315,7 @@ impl GraphManager {
         }
 
         self.state.loaded_modules.clear();
+        self.cycle_detector.clear();
         let _ = fs::remove_file(Self::state_file_path());
         tracing::info!("VoiceGG teardown complete. System audio restored to original state.");
 
@@ -455,5 +517,37 @@ impl Drop for GraphManager {
         if self.initialized && !self.state.loaded_modules.is_empty() {
             let _ = self.teardown_virtual_devices();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cycle_detector_direct_loop() {
+        let detector = GraphCycleDetector::new();
+        // Self-loop
+        assert!(detector.would_cycle("nodeA", "nodeA"));
+    }
+
+    #[test]
+    fn test_cycle_detector_multi_hop_loop() {
+        let mut detector = GraphCycleDetector::new();
+        detector.add_edge("A".to_string(), "B".to_string());
+        detector.add_edge("B".to_string(), "C".to_string());
+
+        // A -> B -> C: adding C -> A should be detected as a cycle
+        assert!(detector.would_cycle("C", "A"));
+
+        // Adding A -> D should be completely safe
+        assert!(!detector.would_cycle("A", "D"));
+        detector.add_edge("A".to_string(), "D".to_string());
+
+        // D -> C is safe
+        assert!(!detector.would_cycle("D", "C"));
+
+        // D -> A would cycle (A -> D -> A)
+        assert!(detector.would_cycle("D", "A"));
     }
 }

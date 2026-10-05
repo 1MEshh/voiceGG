@@ -1,0 +1,21 @@
+[Unit]
+Description=VoiceGG Audio Routing & DSP Daemon
+Documentation=https://github.com/voicegg/voicegg
+After=pipewire.service wireplumber.service
+Requires=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/voicegg-daemon
+Restart=on-failure
+RestartSec=2s
+Nice=-11
+
+# Security Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%t/voicegg %h/.config/voicegg
+
+[Install]
+WantedBy=default.target

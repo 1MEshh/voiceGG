@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=VoiceGG
+GenericName=Audio Mixer & DSP Suite
+Comment=High-performance gaming audio router, parametric EQ, and ChatMix for Arch Linux & Hyprland
+Exec=voicegg-launcher
+Icon=voicegg
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Mixer;Settings;
+Keywords=audio;mixer;equalizer;sonar;chatmix;pipewire;sound;gaming;
+StartupNotify=true

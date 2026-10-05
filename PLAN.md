@@ -49,6 +49,24 @@
 - **Valorant** cannot run on Linux (Vanguard anti-cheat). Keep the preset as a headphone tuning only; don't put Valorant first in the marketing.
 - **Trademarks**: never use "SteelSeries", "Sonar", "GG" logos, or their assets. Say "inspired by" in the README only.
 
+### 0.3 Audio safety rules (MANDATORY — added after a feedback-loop incident in Phase 1)
+
+Incident: the first Phase 1 build used `pactl load-module module-loopback`. No real mic was plugged in, so the "default source" was the headphones' `.monitor`. VoiceGG looped headphone output back into its Mic source → loud screech/electric noise, and leftover modules stayed loaded after the daemon was killed.
+
+1. **Never use a `.monitor` source (or any `Audio/Sink` monitor) as a microphone.** Mic input must be `media.class = Audio/Source` from real hardware. No mic found → Mic channel stays empty and the UI shows "No microphone".
+2. **No pactl/module-loopback hacks.** Build the graph with PipeWire-native nodes (`support.null-audio-sink` / filter nodes via pipewire-rs) and explicit links. Every node carries `voicegg.owned = true` so cleanup can find it.
+3. **Feedback-loop guard:** before creating any link, run a cycle check on the planned graph (output → … → same output). Refuse to link and log an error if a cycle exists. Unit-test this.
+4. **Safe defaults:** all channels start at 50%, Master has a hard true-peak limiter at **−6 dBFS** that can't be disabled in v1. Don't change system default sink/source unless the user enables "Route all apps through VoiceGG" in the app.
+5. **Always clean up:** handle SIGINT/SIGTERM/SIGHUP, panic hook, and on startup remove any stale `voicegg.owned` nodes. `voicegg ctl panic` must work even if the daemon is dead (CLI cleans up directly).
+6. **Testing:** automated tests use a private headless PipeWire instance (`PIPEWIRE_RUNTIME_DIR` temp dir + `pipewire` + `wireplumber` with a null ALSA config). Never test against the maintainer's real headphones without asking first; live tests start muted.
+
+### 0.4 App launcher integration (Rofi / Wofi / Fuzzel / desktop menus)
+
+- Ship `packaging/voicegg.desktop` (`Name=VoiceGG`, `Exec=voicegg-gui`, `Icon=voicegg`, `Categories=AudioVideo;Audio;Mixer;`, `Keywords=audio;mixer;eq;sonar;mic;`) and `packaging/icons/voicegg.svg`.
+- `scripts/install.sh` (user install, no root): binaries → `~/.local/bin`, desktop file → `~/.local/share/applications`, icon → `~/.local/share/icons/hicolor/scalable/apps`, systemd user unit → `~/.config/systemd/user`, then `update-desktop-database` / `gtk-update-icon-cache` if present. AUR package installs the same files under `/usr`.
+- `scripts/uninstall.sh`: stop & disable the service, run `voicegg ctl panic` (restore audio), remove every installed file, keep user config unless `--purge`.
+- Launching from Rofi opens the GUI and starts `voicegg-daemon.service` if it is not running. Until the GUI exists (Phase 5), `Exec` opens a terminal with `voicegg status`.
+
 ---
 
 ## 1. Goals

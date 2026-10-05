@@ -28,6 +28,17 @@ pub struct AudioDevice {
     pub is_default: bool,
 }
 
+impl AudioDevice {
+    /// Returns true only if the device is a genuine hardware capture device (not a monitor or loopback).
+    #[must_use]
+    pub fn is_real_hardware_mic(&self) -> bool {
+        self.device_type == DeviceType::Source
+            && !self.name.ends_with(".monitor")
+            && !self.name.starts_with("alsa_output")
+            && !self.name.starts_with("voicegg_")
+    }
+}
+
 /// Represents an active application audio stream currently playing into PipeWire.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveStream {

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -e
+
+# VoiceGG Application Launcher
+# Ensures daemon is running, then launches GUI (or terminal status in pre-GUI mode)
+
+# 1. Start daemon if not running
+if ! pgrep -x "voicegg-daemon" > /dev/null 2>&1; then
+    if systemctl --user is-enabled voicegg-daemon.service > /dev/null 2>&1; then
+        systemctl --user start voicegg-daemon.service
+    else
+        voicegg-daemon &
+        sleep 0.5
+    fi
+fi
+
+# 2. Launch GUI if available, else launch terminal status
+if command -v voicegg-gui > /dev/null 2>&1; then
+    exec voicegg-gui "$@"
+elif command -v kitty > /dev/null 2>&1; then
+    exec kitty --title "VoiceGG Audio Suite" bash -c "voicegg status; echo ''; read -n 1 -s -r -p 'Press any key to close...'"
+elif command -v alacritty > /dev/null 2>&1; then
+    exec alacritty -T "VoiceGG Audio Suite" -e bash -c "voicegg status; echo ''; read -n 1 -s -r -p 'Press any key to close...'"
+elif command -v foot > /dev/null 2>&1; then
+    exec foot -T "VoiceGG Audio Suite" bash -c "voicegg status; echo ''; read -n 1 -s -r -p 'Press any key to close...'"
+else
+    # Fallback x-terminal-emulator or notify-send
+    if command -v notify-send > /dev/null 2>&1; then
+        STATUS_OUT=$(voicegg status)
+        notify-send "VoiceGG" "$STATUS_OUT" --icon=voicegg
+    fi
+fi
