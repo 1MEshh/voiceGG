@@ -6,7 +6,7 @@ export interface AudioDevice {
   id: number;
   name: string;
   description: string;
-  device_type: 'Sink' | 'Source';
+  device_type: 'sink' | 'source' | 'Sink' | 'Source';
   is_default: boolean;
 }
 
@@ -98,6 +98,8 @@ export interface VoiceggConfig {
   chatmix: number;
   routing_rules: AppRouteRule[];
   auto_game_detection: boolean;
+  preferred_output_device?: string | null;
+  preferred_input_device?: string | null;
 }
 
 export interface SystemStatus {

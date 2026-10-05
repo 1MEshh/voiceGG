@@ -12,6 +12,14 @@
   let selectedCategory: 'all' | 'game' | 'chat' | 'media' | 'mic' = 'all';
   let searchQuery = '';
 
+  $: if (isOpen && activeChannel) {
+    if (activeChannel === 'game' || activeChannel === 'chat' || activeChannel === 'media' || activeChannel === 'mic') {
+      selectedCategory = activeChannel;
+    } else {
+      selectedCategory = 'all';
+    }
+  }
+
   $: filteredPresets = allPresets.filter(p => {
     const matchCat = selectedCategory === 'all' || p.category === selectedCategory;
     const matchSearch =
@@ -36,6 +44,7 @@
       aria-modal="true"
       tabindex="-1"
       on:click|stopPropagation
+      on:keydown|stopPropagation
     >
       <div class="modal-header">
         <div class="header-left">
@@ -69,7 +78,12 @@
       <div class="preset-grid">
         {#each filteredPresets as preset}
           {@const isActive = preset.id === activePresetId}
-          <div class="preset-card" class:active={isActive} on:click={() => onSelectPreset(preset)}>
+          <button
+            type="button"
+            class="preset-card"
+            class:active={isActive}
+            on:click={() => onSelectPreset(preset)}
+          >
             <div class="card-top">
               <span class="category-badge">{preset.category.toUpperCase()}</span>
               {#if isActive}
@@ -88,7 +102,7 @@
                 <span class="tag-pill">#{tag}</span>
               {/each}
             </div>
-          </div>
+          </button>
         {:else}
           <div class="no-results">
             <span>No presets match your search query</span>

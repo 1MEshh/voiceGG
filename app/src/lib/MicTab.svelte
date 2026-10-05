@@ -5,7 +5,9 @@
 
   export let currentPreset: Preset;
   export let devices: AudioDevice[];
+  export let preferredInputDevice: string | null = null;
   export let onChangePreset: (preset: Preset) => void;
+  export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
 
   let micGain = 100;
   let noiseAmount = currentPreset.noise_canceller?.amount ?? 75;
@@ -57,10 +59,14 @@
     <div class="mic-controls-row">
       <div class="device-col">
         <span class="label">INPUT DEVICE</span>
-        <select class="device-select">
+        <select
+          class="device-select"
+          value={preferredInputDevice || 'default'}
+          on:change={(e) => onSetDevice('source', e.currentTarget.value)}
+        >
           <option value="default">Default Hardware Source</option>
-          {#each devices.filter(d => d.device_type === 'Source' && !d.name.endsWith('.monitor')) as dev}
-            <option value={dev.name}>{dev.description}</option>
+          {#each (devices || []).filter(d => d.device_type.toLowerCase() === 'source' && !d.name.endsWith('.monitor')) as dev}
+            <option value={dev.name}>{dev.description || dev.name}</option>
           {/each}
         </select>
       </div>

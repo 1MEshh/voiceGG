@@ -129,6 +129,15 @@
     }
   }
 
+  async function handleSetDevice(type: 'sink' | 'source', deviceName: string) {
+    try {
+      await invoke('set_audio_device', { deviceType: type, deviceName });
+      await fetchStatus();
+    } catch (e) {
+      console.error('Failed to set audio device:', e);
+    }
+  }
+
   function openPresetBrowser(channel: ChannelId) {
     browserTargetChannel = channel;
     isPresetBrowserOpen = true;
@@ -170,23 +179,26 @@
         onSetChatMix={handleSetChatMix}
         onRouteApp={handleRouteApp}
         onOpenPresetBrowser={openPresetBrowser}
+        onSetDevice={handleSetDevice}
       />
     {:else if activeTab === 'mic'}
       {#if currentPresetObj}
         <MicTab
           currentPreset={currentPresetObj}
           devices={status.devices}
+          preferredInputDevice={status.config.preferred_input_device}
           onChangePreset={(p) => handleApplyPreset(p)}
+          onSetDevice={handleSetDevice}
         />
       {/if}
     {:else}
       {#if currentPresetObj}
         <ChannelTab
-          channel={activeTab}
+          channel={activeTab as ChannelId}
           currentPreset={currentPresetObj}
           {allPresets}
           onApplyPreset={handleApplyPreset}
-          onOpenBrowser={() => openPresetBrowser(activeTab)}
+          onOpenBrowser={() => openPresetBrowser(activeTab as ChannelId)}
           onChangeEq={(eq) => {
             currentPresetObj.eq = eq;
           }}

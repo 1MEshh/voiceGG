@@ -25,6 +25,7 @@
       aria-modal="true"
       tabindex="-1"
       on:click|stopPropagation
+      on:keydown|stopPropagation
     >
       <div class="modal-header">
         <div class="header-left">

@@ -6,14 +6,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "==> Building VoiceGG frontend..."
-if [ -d "$ROOT_DIR/app" ]; then
-    (cd "$ROOT_DIR/app" && npm run build)
-fi
-
-echo "==> Building VoiceGG release binaries..."
+echo "==> Building VoiceGG release binaries (daemon & CLI)..."
 cd "$ROOT_DIR"
-cargo build --release
+cargo build --release -p voicegg-cli -p voicegg-daemon
+
+echo "==> Building VoiceGG GUI release binary (with embedded frontend)..."
+(cd "$ROOT_DIR/app" && npx tauri build --no-bundle)
 
 BIN_DIR="$HOME/.local/bin"
 APP_DIR="$HOME/.local/share/applications"

@@ -164,6 +164,31 @@ fn get_builtin_presets() -> Vec<Preset> {
 }
 
 #[tauri::command]
+async fn set_audio_device(
+    device_type: String,
+    device_name: String,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let dt = match device_type.to_lowercase().as_str() {
+        "sink" => voicegg_pw::DeviceType::Sink,
+        "source" => voicegg_pw::DeviceType::Source,
+        _ => return Err(format!("Invalid device type: {device_type}")),
+    };
+
+    match state
+        .send_request(IpcRequest::SetDevice {
+            device_type: dt,
+            device_name,
+        })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
 async fn panic_reset(state: State<'_, IpcState>) -> Result<(), String> {
     match state.send_request(IpcRequest::PanicReset).await? {
         IpcResponse::Success => Ok(()),
@@ -187,6 +212,7 @@ pub fn run() {
             set_preset,
             route_app,
             get_devices,
+            set_audio_device,
             get_builtin_presets,
             panic_reset
         ])

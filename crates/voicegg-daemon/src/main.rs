@@ -126,6 +126,36 @@ impl RequestHandler for DaemonHandler {
                     Err(e) => IpcResponse::Error(e.to_string()),
                 }
             }
+            IpcRequest::SetDevice {
+                device_type,
+                device_name,
+            } => {
+                let mut gm = self.graph.lock().unwrap();
+                let res = match device_type {
+                    voicegg_pw::DeviceType::Sink => {
+                        let r = gm.set_output_sink(&device_name);
+                        if r.is_ok() {
+                            let mut cfg = self.config.write().unwrap();
+                            cfg.preferred_output_device = Some(device_name.clone());
+                            self.dirty.store(true, Ordering::Relaxed);
+                        }
+                        r
+                    }
+                    voicegg_pw::DeviceType::Source => {
+                        let r = gm.set_input_source(&device_name);
+                        if r.is_ok() {
+                            let mut cfg = self.config.write().unwrap();
+                            cfg.preferred_input_device = Some(device_name.clone());
+                            self.dirty.store(true, Ordering::Relaxed);
+                        }
+                        r
+                    }
+                };
+                match res {
+                    Ok(()) => IpcResponse::Success,
+                    Err(e) => IpcResponse::Error(e.to_string()),
+                }
+            }
             IpcRequest::PanicReset => {
                 tracing::warn!("PanicReset requested: resetting audio graph to system defaults");
                 let mut gm = self.graph.lock().unwrap();

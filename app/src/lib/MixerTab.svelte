@@ -9,6 +9,7 @@
   export let onSetChatMix: (value: number) => void;
   export let onRouteApp: (binary: string, target: ChannelId) => void;
   export let onOpenPresetBrowser: (channel: ChannelId) => void;
+  export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
 
   const channelList: ChannelId[] = ['master', 'game', 'chat', 'media', 'aux', 'mic'];
 
@@ -45,14 +46,6 @@
     }
     dragOverChannel = null;
   }
-
-  function getStreamsForChannel(channel: ChannelId): ActiveStream[] {
-    if (channel === 'master') {
-      // Unassigned streams
-      return status.streams.filter(s => !s.current_channel || s.current_channel === 'master');
-    }
-    return status.streams.filter(s => s.current_channel === channel);
-  }
 </script>
 
 <div class="mixer-view">
@@ -62,7 +55,7 @@
       {@const vol = status.config.volumes[ch] ?? 100}
       {@const isMuted = status.config.muted[ch] ?? false}
       {@const presetId = status.config.active_presets[ch] ?? 'Default'}
-      {@const streams = getStreamsForChannel(ch)}
+      {@const streams = (status.streams || []).filter(s => ch === 'master' ? (!s.current_channel || s.current_channel === 'master') : (s.current_channel === ch))}
 
       <div
         class="strip"
@@ -96,10 +89,14 @@
 
         <!-- Device Selector -->
         <div class="device-row">
-          <select class="device-select">
+          <select
+            class="device-select"
+            value={status.config.preferred_output_device || 'default'}
+            on:change={(e) => onSetDevice('sink', e.currentTarget.value)}
+          >
             <option value="default">Default Headphone Sink</option>
-            {#each status.devices.filter(d => ch === 'mic' ? d.device_type === 'Source' : d.device_type === 'Sink') as dev}
-              <option value={dev.name}>{dev.description}</option>
+            {#each (status.devices || []).filter(d => ch === 'mic' ? d.device_type.toLowerCase() === 'source' : d.device_type.toLowerCase() === 'sink') as dev}
+              <option value={dev.name}>{dev.description || dev.name}</option>
             {/each}
           </select>
         </div>
@@ -116,7 +113,6 @@
 
           <input
             type="range"
-            orient="vertical"
             class="vertical-slider"
             min="0"
             max="150"

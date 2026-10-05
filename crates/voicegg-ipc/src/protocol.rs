@@ -58,6 +58,13 @@ pub enum IpcRequest {
     },
     /// List hardware audio devices.
     GetDevices,
+    /// Set preferred hardware audio device (sink or source).
+    SetDevice {
+        /// Device type (Sink or Source).
+        device_type: voicegg_pw::DeviceType,
+        /// Physical device node name (e.g. alsa_output.usb-... or default).
+        device_name: String,
+    },
     /// Emergency panic: destroy all virtual devices and restore default system routing.
     PanicReset,
 }

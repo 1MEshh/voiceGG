@@ -13,6 +13,8 @@ struct GraphState {
     original_default_sink: Option<String>,
     original_default_source: Option<String>,
     loaded_modules: Vec<u32>,
+    master_output_module: Option<u32>,
+    mic_input_module: Option<u32>,
 }
 
 /// Directed graph cycle detector to prevent audio feedback loops.
@@ -264,7 +266,9 @@ impl GraphManager {
                 "Connecting VoiceGG Master to physical sink '{}'",
                 target_sink
             );
-            let _ = self.load_loopback("voicegg_sink_master.monitor", &target_sink);
+            if let Ok(id) = self.load_loopback("voicegg_sink_master.monitor", &target_sink) {
+                self.state.master_output_module = Some(id);
+            }
         }
 
         // 6. Link Physical Mic to VoiceGG Mic Source.
@@ -280,7 +284,9 @@ impl GraphManager {
                     "Connecting physical microphone '{}' to VoiceGG Mic",
                     mic_source
                 );
-                let _ = self.load_loopback(&mic_source, "voicegg_source_mic");
+                if let Ok(id) = self.load_loopback(&mic_source, "voicegg_source_mic") {
+                    self.state.mic_input_module = Some(id);
+                }
             }
         }
 
@@ -539,6 +545,63 @@ impl GraphManager {
         let _ = Command::new("pactl")
             .args([cmd, node_name, mute_str])
             .output();
+        Ok(())
+    }
+
+    /// Changes the hardware output sink that VoiceGG Master forwards to.
+    pub fn set_output_sink(&mut self, sink_name: &str) -> Result<()> {
+        let target = if sink_name == "default" || sink_name.is_empty() {
+            self.state.original_default_sink.clone().unwrap_or_default()
+        } else {
+            sink_name.to_string()
+        };
+
+        if target.is_empty() {
+            return Err(PwError::Generic("No valid target output sink".into()));
+        }
+
+        if let Some(mod_id) = self.state.master_output_module.take() {
+            let _ = Command::new("pactl")
+                .args(["unload-module", &mod_id.to_string()])
+                .output();
+            self.state.loaded_modules.retain(|&id| id != mod_id);
+        }
+
+        tracing::info!("Switching VoiceGG Master output to '{}'", target);
+        let mod_id = self.load_loopback("voicegg_sink_master.monitor", &target)?;
+        self.state.master_output_module = Some(mod_id);
+        self.save_state();
+        Ok(())
+    }
+
+    /// Changes the hardware input microphone source feeding into VoiceGG Mic.
+    pub fn set_input_source(&mut self, source_name: &str) -> Result<()> {
+        let target = if source_name == "default" || source_name.is_empty() {
+            self.state.original_default_source.clone().unwrap_or_default()
+        } else {
+            source_name.to_string()
+        };
+
+        if target.ends_with(".monitor")
+            || target.starts_with("alsa_output")
+            || target.starts_with("voicegg_")
+        {
+            return Err(PwError::Generic(format!(
+                "Cannot use '{target}' as microphone source: feedback safety protection."
+            )));
+        }
+
+        if let Some(mod_id) = self.state.mic_input_module.take() {
+            let _ = Command::new("pactl")
+                .args(["unload-module", &mod_id.to_string()])
+                .output();
+            self.state.loaded_modules.retain(|&id| id != mod_id);
+        }
+
+        tracing::info!("Switching VoiceGG Mic input to '{}'", target);
+        let mod_id = self.load_loopback(&target, "voicegg_source_mic")?;
+        self.state.mic_input_module = Some(mod_id);
+        self.save_state();
         Ok(())
     }
 }
