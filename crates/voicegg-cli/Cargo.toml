@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 voicegg-core = { workspace = true }
+voicegg-pw = { workspace = true }
 voicegg-ipc = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }

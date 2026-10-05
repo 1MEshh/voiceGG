@@ -106,7 +106,8 @@ impl GraphManager {
         }
     }
 
-    fn cleanup_stale_modules() {
+    /// Removes any stale loaded VoiceGG modules from PipeWire and restores defaults.
+    pub fn cleanup_stale_modules() {
         let path = Self::state_file_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {

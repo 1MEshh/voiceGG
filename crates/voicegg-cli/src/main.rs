@@ -68,6 +68,17 @@ enum CtlAction {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    if let Commands::Panic = cli.command {
+        if let Ok(mut client) = IpcClient::connect_default().await {
+            let _ = client.request(IpcRequest::PanicReset).await;
+        } else {
+            voicegg_pw::GraphManager::cleanup_stale_modules();
+        }
+        println!("Audio graph reset to system defaults successfully.");
+        return Ok(());
+    }
+
     let mut client = match IpcClient::connect_default().await {
         Ok(c) => c,
         Err(e) => {
@@ -76,6 +87,7 @@ async fn main() -> Result<()> {
     };
 
     match cli.command {
+        Commands::Panic => unreachable!(),
         Commands::Status { json } => match client.request(IpcRequest::GetStatus).await? {
             IpcResponse::Status(status) => {
                 if json {
@@ -112,11 +124,6 @@ async fn main() -> Result<()> {
                 }
             }
             other => println!("Unexpected response: {:?}", other),
-        },
-        Commands::Panic => match client.request(IpcRequest::PanicReset).await? {
-            IpcResponse::Success => println!("Audio graph reset to system defaults successfully."),
-            IpcResponse::Error(e) => eprintln!("Error resetting graph: {e}"),
-            _ => (),
         },
         Commands::Ctl(ctl) => match ctl.action {
             CtlAction::Volume { channel, volume } => {
