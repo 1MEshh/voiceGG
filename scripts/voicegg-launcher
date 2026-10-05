@@ -4,6 +4,13 @@ set -e
 # VoiceGG Application Launcher
 # Ensures daemon is running, then launches GUI (or terminal status in pre-GUI mode)
 
+# NVIDIA WebKitGTK DMABUF safeguard on Wayland
+if [ -z "$WEBKIT_DISABLE_DMABUF_RENDERER" ]; then
+    if lspci 2>/dev/null | grep -i "nvidia" > /dev/null 2>&1; then
+        export WEBKIT_DISABLE_DMABUF_RENDERER=1
+    fi
+fi
+
 # 1. Start daemon if not running
 if ! pgrep -x "voicegg-daemon" > /dev/null 2>&1; then
     if systemctl --user is-enabled voicegg-daemon.service > /dev/null 2>&1; then
