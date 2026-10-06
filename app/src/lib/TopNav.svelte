@@ -23,10 +23,12 @@
 
 <header class="top-nav">
   <div class="brand">
-    <div class="logo-badge">
-      <SlidersHorizontal size={18} color="#22c55e" />
+    <div class="logo-icon">
+      <div class="bar bar-1"></div>
+      <div class="bar bar-2"></div>
+      <div class="bar bar-3"></div>
     </div>
-    <span class="app-title">VoiceGG</span>
+    <span class="app-title">VOICEGG</span>
   </div>
 
   <nav class="nav-tabs">
@@ -38,48 +40,24 @@
       >
         <svelte:component this={tab.icon} size={15} />
         <span>{tab.label}</span>
-        {#if tab.id !== 'mixer'}
-          <span
-            class="channel-dot"
-            style="background-color: {CHANNELS[tab.id]?.defaultColor || '#888'}"
-          ></span>
-        {/if}
       </button>
     {/each}
   </nav>
 
   <div class="actions">
     {#if activeGame}
-      <div class="game-badge" title="Auto Game Detection: EQ preset applied">
-        <span class="pulse-dot"></span>
-        <span class="game-name">{activeGame}</span>
+      <div class="game-badge" title="Auto Game Detection">
+        {activeGame}
       </div>
     {/if}
-
-    <button
-      class="streamer-toggle"
-      class:active={streamerMode}
-      on:click={onToggleStreamer}
-      title="Toggle Streamer Mode (OBS stream mix)"
-    >
-      <Radio size={14} />
-      <span>STREAMER</span>
+    <button class="icon-btn" class:active={streamerMode} on:click={onToggleStreamer} title="Streamer Mode">
+      <Radio size={15} />
     </button>
-
-    <button
-      class="icon-btn panic-btn"
-      on:click={onPanicReset}
-      title="Panic Reset: Destroy virtual sinks and restore default PipeWire audio"
-    >
-      <AlertTriangle size={15} color="#ef4444" />
+    <button class="icon-btn panic-btn" on:click={onPanicReset} title="Panic Reset">
+      <AlertTriangle size={15} />
     </button>
-
-    <button
-      class="icon-btn settings-btn"
-      on:click={onOpenSettings}
-      title="Settings & Devices"
-    >
-      <Settings size={16} />
+    <button class="icon-btn" on:click={onOpenSettings} title="Settings">
+      <Settings size={15} />
     </button>
   </div>
 </header>
@@ -89,161 +67,37 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 52px;
+    height: 48px;
     padding: 0 16px;
-    background-color: #13171d;
-    border-bottom: 1px solid #232a35;
+    background-color: #0d1117;
+    border-bottom: 1px solid #1f2937;
     user-select: none;
+    font-family: 'Inter', sans-serif;
   }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .logo-badge {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: #1c2430;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #2d3846;
-  }
-
-  .app-title {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #f3f4f6;
-  }
-
-  .nav-tabs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: #181d24;
-    padding: 3px;
-    border-radius: 8px;
-    border: 1px solid #232a35;
-  }
-
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .logo-icon { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
+  .bar { width: 4px; background: linear-gradient(180deg, #38bdf8 0%, #c084fc 100%); border-radius: 1px; }
+  .bar-1 { height: 10px; }
+  .bar-2 { height: 16px; }
+  .bar-3 { height: 12px; }
+  .app-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: #f8fafc; }
+  
+  .nav-tabs { display: flex; gap: 4px; }
   .tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 14px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    color: #94a3b8;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+    background: transparent; border: none; color: #64748b; font-size: 11px;
+    font-weight: 700; cursor: pointer; transition: all 0.1s; letter-spacing: 0.5px;
   }
+  .tab-btn:hover { color: #cbd5e1; }
+  .tab-btn.active { color: #f8fafc; border-bottom: 2px solid #38bdf8; }
 
-  .tab-btn:hover {
-    color: #f1f5f9;
-    background: #202732;
-  }
-
-  .tab-btn.active {
-    color: #ffffff;
-    background: #2a3443;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-
-  .channel-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .game-badge {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 4px 10px;
-    background: #142a1e;
-    border: 1px solid #22c55e44;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #4ade80;
-  }
-
-  .pulse-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: #22c55e;
-    box-shadow: 0 0 6px #22c55e;
-  }
-
-  .game-name {
-    max-width: 140px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .streamer-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    background: #1a2029;
-    border: 1px solid #2a3443;
-    border-radius: 6px;
-    color: #94a3b8;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .streamer-toggle:hover {
-    color: #f3f4f6;
-    background: #232b37;
-  }
-
-  .streamer-toggle.active {
-    color: #ec4899;
-    border-color: #ec489988;
-    background: #2a1525;
-  }
-
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .game-badge { background: #064e3b; color: #34d399; font-size: 10px; font-weight: 700; padding: 4px 8px; text-transform: uppercase; border-radius: 2px; }
   .icon-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: #1a2029;
-    border: 1px solid #2a3443;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    background: transparent; border: none; color: #64748b; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
   }
-
-  .icon-btn:hover {
-    color: #f8fafc;
-    background: #26303d;
-  }
-
-  .panic-btn:hover {
-    background: #331515;
-    border-color: #ef444466;
-  }
+  .icon-btn:hover { color: #f8fafc; }
+  .icon-btn.active { color: #c084fc; }
+  .panic-btn:hover { color: #ef4444; }
 </style>

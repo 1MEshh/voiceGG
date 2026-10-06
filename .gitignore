@@ -26,3 +26,6 @@ Cargo.lock
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# Internal / Private development notes
+.private/

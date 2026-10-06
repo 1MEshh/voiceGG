@@ -17,7 +17,7 @@ tauri-build = { version = "2", features = [] }
 voicegg-core = { workspace = true }
 voicegg-pw = { workspace = true }
 voicegg-ipc = { workspace = true }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }

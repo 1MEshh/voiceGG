@@ -197,6 +197,7 @@ async fn panic_reset(state: State<'_, IpcState>) -> Result<(), String> {
     }
 }
 
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -204,7 +205,45 @@ pub fn run() {
         .manage(IpcState {
             client: Mutex::new(None),
         })
+        .setup(|app| {
+            use tauri::{menu::{Menu, MenuItem}, tray::TrayIconBuilder, Manager};
+            
+            let quit_i = MenuItem::with_id(app, "quit", "Quit VoiceGG", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show Mixer", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => {
+                        let state = app.state::<IpcState>();
+                        let _ = tauri::async_runtime::block_on(async {
+                            let _ = state.send_request(voicegg_ipc::IpcRequest::PanicReset).await;
+                        });
+                        let _ = std::process::Command::new("killall").arg("voicegg-daemon").spawn();
+                        app.exit(0);
+                    }
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    _ => {}
+                })
+                .build(app)?;
+                
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+
             get_status,
             set_volume,
             set_mute,

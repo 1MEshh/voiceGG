@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" width="920" height="280" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#161b22" />
+    </linearGradient>
+    <linearGradient id="orange-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fb923c" />
+    </linearGradient>
+  </defs>
+
+  <rect width="920" height="280" rx="16" fill="url(#bg)" stroke="#30363d" stroke-width="1.5"/>
+
+  <!-- Title -->
+  <text x="40" y="44" fill="#f0f6fc" font-family="Inter, -apple-system, sans-serif" font-size="18" font-weight="700" letter-spacing="0.5">MICROPHONE DSP PIPELINE</text>
+  <text x="40" y="68" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="12">Real-time low-latency voice enhancement chain with AI suppression</text>
+
+  <!-- Stage 1: Hardware Mic -->
+  <g transform="translate(40, 100)">
+    <rect width="110" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.2"/>
+    <circle cx="55" cy="40" r="14" fill="#21262d"/>
+    <text x="55" y="45" fill="#f97316" font-family="Inter, sans-serif" font-size="14" text-anchor="middle">🎙️</text>
+    <text x="55" y="76" fill="#f0f6fc" font-family="Inter, sans-serif" font-size="11" font-weight="700" text-anchor="middle">Hardware Mic</text>
+    <text x="55" y="94" fill="#8b949e" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Raw Input</text>
+  </g>
+
+  <!-- Connector 1 -->
+  <path d="M 150 160 L 175 160" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="175,160 168,156 168,164" fill="#f97316"/>
+
+  <!-- Stage 2: Noise Gate -->
+  <g transform="translate(180, 100)">
+    <rect width="115" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.2"/>
+    <circle cx="57" cy="40" r="14" fill="#21262d"/>
+    <text x="57" y="45" fill="#f97316" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">🛡️</text>
+    <text x="57" y="76" fill="#f0f6fc" font-family="Inter, sans-serif" font-size="11" font-weight="700" text-anchor="middle">Noise Gate</text>
+    <text x="57" y="94" fill="#8b949e" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Mutes Breath/Fans</text>
+  </g>
+
+  <!-- Connector 2 -->
+  <path d="M 295 160 L 320 160" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="320,160 313,156 313,164" fill="#f97316"/>
+
+  <!-- Stage 3: ClearCast RNNoise -->
+  <g transform="translate(325, 100)">
+    <rect width="130" height="120" rx="8" fill="#24140b" stroke="#f97316" stroke-width="1.5"/>
+    <circle cx="65" cy="40" r="14" fill="#f97316" fill-opacity="0.2"/>
+    <text x="65" y="45" fill="#fb923c" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">⚡</text>
+    <text x="65" y="76" fill="#fb923c" font-family="Inter, sans-serif" font-size="11" font-weight="800" text-anchor="middle">RNNoise AI</text>
+    <text x="65" y="94" fill="#fdba74" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Neural Suppression</text>
+  </g>
+
+  <!-- Connector 3 -->
+  <path d="M 455 160 L 480 160" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="480,160 473,156 473,164" fill="#f97316"/>
+
+  <!-- Stage 4: 10-Band EQ -->
+  <g transform="translate(485, 100)">
+    <rect width="115" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.2"/>
+    <circle cx="57" cy="40" r="14" fill="#21262d"/>
+    <text x="57" y="45" fill="#f97316" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">🎚️</text>
+    <text x="57" y="76" fill="#f0f6fc" font-family="Inter, sans-serif" font-size="11" font-weight="700" text-anchor="middle">10-Band EQ</text>
+    <text x="57" y="94" fill="#8b949e" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Broadcast Tone</text>
+  </g>
+
+  <!-- Connector 4 -->
+  <path d="M 600 160 L 625 160" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="625,160 618,156 618,164" fill="#f97316"/>
+
+  <!-- Stage 5: Compressor -->
+  <g transform="translate(630, 100)">
+    <rect width="115" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.2"/>
+    <circle cx="57" cy="40" r="14" fill="#21262d"/>
+    <text x="57" y="45" fill="#f97316" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">🔊</text>
+    <text x="57" y="76" fill="#f0f6fc" font-family="Inter, sans-serif" font-size="11" font-weight="700" text-anchor="middle">Compressor</text>
+    <text x="57" y="94" fill="#8b949e" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Level Dynamics</text>
+  </g>
+
+  <!-- Connector 5 -->
+  <path d="M 745 160 L 770 160" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="770,160 763,156 763,164" fill="#f97316"/>
+
+  <!-- Stage 6: Virtual Mic Out -->
+  <g transform="translate(775, 100)">
+    <rect width="115" height="120" rx="8" fill="#161b22" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="57" cy="40" r="14" fill="#142a1e"/>
+    <text x="57" y="45" fill="#4ade80" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">✨</text>
+    <text x="57" y="76" fill="#4ade80" font-family="Inter, sans-serif" font-size="11" font-weight="800" text-anchor="middle">Virtual Mic</text>
+    <text x="57" y="94" fill="#8b949e" font-family="Inter, sans-serif" font-size="9" text-anchor="middle">Discord / Games</text>
+  </g>
+</svg>

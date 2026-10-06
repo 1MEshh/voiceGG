@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#161b22" />
+    </linearGradient>
+    <linearGradient id="g-game" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="g-chat" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="g-media" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#f43f5e" />
+    </linearGradient>
+    <linearGradient id="g-aux" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+    <linearGradient id="g-master" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <filter id="shadow" x="-4" y="-4" width="108%" height="116%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="920" height="420" rx="16" fill="url(#bg)" stroke="#30363d" stroke-width="1.5"/>
+
+  <!-- Section Title -->
+  <text x="40" y="44" fill="#f0f6fc" font-family="Inter, -apple-system, sans-serif" font-size="18" font-weight="700" letter-spacing="0.5">VOICEGG AUDIO ROUTING ARCHITECTURE</text>
+  <text x="40" y="68" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="12">Native zero-latency PipeWire graph routing with persistent application tracking</text>
+
+  <!-- Left Column: Source Applications -->
+  <g transform="translate(40, 100)">
+    <rect width="180" height="270" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="16" y="28" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1">AUDIO APPS</text>
+    
+    <!-- App 1: CS2 -->
+    <rect x="14" y="44" width="152" height="42" rx="6" fill="#21262d" stroke="#30363d"/>
+    <circle cx="32" cy="65" r="7" fill="#22c55e"/>
+    <text x="48" y="69" fill="#c9d1d9" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="600">CS2 / Games</text>
+
+    <!-- App 2: Discord -->
+    <rect x="14" y="98" width="152" height="42" rx="6" fill="#21262d" stroke="#30363d"/>
+    <circle cx="32" cy="119" r="7" fill="#06b6d4"/>
+    <text x="48" y="123" fill="#c9d1d9" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="600">Discord / Voice</text>
+
+    <!-- App 3: Spotify / Chrome -->
+    <rect x="14" y="152" width="152" height="42" rx="6" fill="#21262d" stroke="#30363d"/>
+    <circle cx="32" cy="173" r="7" fill="#ec4899"/>
+    <text x="48" y="177" fill="#c9d1d9" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="600">Spotify / Chrome</text>
+
+    <!-- App 4: System / Alerts -->
+    <rect x="14" y="206" width="152" height="42" rx="6" fill="#21262d" stroke="#30363d"/>
+    <circle cx="32" cy="227" r="7" fill="#8b5cf6"/>
+    <text x="48" y="231" fill="#c9d1d9" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="600">System Sounds</text>
+  </g>
+
+  <!-- Connectors Left -> Middle -->
+  <path d="M 220 165 C 270 165, 270 165, 320 165" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 220 219 C 270 219, 270 219, 320 219" stroke="#06b6d4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 220 273 C 270 273, 270 273, 320 273" stroke="#ec4899" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 220 327 C 270 327, 270 327, 320 327" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Middle Column: Virtual Channels -->
+  <g transform="translate(320, 100)">
+    <rect width="240" height="270" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="16" y="28" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1">VIRTUAL CHANNELS</text>
+    
+    <!-- Channel Game -->
+    <rect x="14" y="44" width="212" height="42" rx="6" fill="#142a1e" stroke="#22c55e" stroke-width="1.2"/>
+    <text x="28" y="69" fill="#4ade80" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700">VoiceGG_Game</text>
+    <text x="175" y="69" fill="#8b949e" font-family="monospace" font-size="10">EQ + ChatMix</text>
+
+    <!-- Channel Chat -->
+    <rect x="14" y="98" width="212" height="42" rx="6" fill="#122533" stroke="#06b6d4" stroke-width="1.2"/>
+    <text x="28" y="123" fill="#38bdf8" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700">VoiceGG_Chat</text>
+    <text x="175" y="123" fill="#8b949e" font-family="monospace" font-size="10">Clarity EQ</text>
+
+    <!-- Channel Media -->
+    <rect x="14" y="152" width="212" height="42" rx="6" fill="#2a1420" stroke="#ec4899" stroke-width="1.2"/>
+    <text x="28" y="177" fill="#f472b6" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700">VoiceGG_Media</text>
+    <text x="175" y="177" fill="#8b949e" font-family="monospace" font-size="10">Bass Boost</text>
+
+    <!-- Channel Aux -->
+    <rect x="14" y="206" width="212" height="42" rx="6" fill="#20172e" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="28" y="231" fill="#c084fc" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700">VoiceGG_Aux</text>
+    <text x="175" y="231" fill="#8b949e" font-family="monospace" font-size="10">Direct</text>
+  </g>
+
+  <!-- Connectors Middle -> Master -->
+  <path d="M 560 165 C 600 165, 600 219, 640 219" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 560 219 C 600 219, 600 219, 640 219" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 560 273 C 600 273, 600 219, 640 219" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 560 327 C 600 327, 600 219, 640 219" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+  <!-- Right Column: Master & Physical Out -->
+  <g transform="translate(640, 100)">
+    <rect width="240" height="270" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="16" y="28" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1">OUTPUT BUS</text>
+
+    <!-- Master Sink -->
+    <rect x="14" y="60" width="212" height="66" rx="8" fill="#211530" stroke="url(#g-master)" stroke-width="1.5"/>
+    <text x="28" y="88" fill="#f8fafc" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="800">VoiceGG_Master</text>
+    <text x="28" y="108" fill="#a855f7" font-family="Inter, -apple-system, sans-serif" font-size="10" font-weight="600">Peak Limiter + 0dB Ear Guard</text>
+
+    <!-- Arrow down -->
+    <path d="M 120 136 L 120 166" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+    <polygon points="120,172 115,162 125,162" fill="#8b5cf6"/>
+
+    <!-- Physical Hardware -->
+    <rect x="14" y="180" width="212" height="66" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.2"/>
+    <text x="28" y="208" fill="#f0f6fc" font-family="Inter, -apple-system, sans-serif" font-size="12" font-weight="700">Hardware Headphones / DAC</text>
+    <text x="28" y="228" fill="#8b949e" font-family="Inter, -apple-system, sans-serif" font-size="10">Selected default PipeWire sink</text>
+  </g>
+</svg>

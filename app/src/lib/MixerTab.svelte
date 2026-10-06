@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ChannelId, SystemStatus, ActiveStream, AudioDevice } from '../types';
+  import type { ChannelId, SystemStatus, ActiveStream } from '../types';
   import { CHANNELS } from './theme';
   import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, MoreVertical } from '@lucide/svelte';
 
@@ -12,25 +12,20 @@
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
 
   const channelList: ChannelId[] = ['master', 'game', 'chat', 'media', 'aux', 'mic'];
+  const channelIcons: Record<ChannelId, any> = { master: SlidersHorizontal, game: Gamepad2, chat: MessageSquare, media: Music, aux: Headphones, mic: Mic };
 
-  const channelIcons: Record<ChannelId, any> = {
-    master: SlidersHorizontal,
-    game: Gamepad2,
-    chat: MessageSquare,
-    media: Music,
-    aux: Headphones,
-    mic: Mic,
-  };
-
-  let draggedApp: ActiveStream | null = null;
   let dragOverChannel: ChannelId | null = null;
 
-  function handleDragStart(stream: ActiveStream) {
-    draggedApp = stream;
+  function handleDragStart(e: DragEvent, stream: ActiveStream) {
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/json', JSON.stringify(stream));
+    }
   }
 
   function handleDragOver(e: DragEvent, channel: ChannelId) {
     e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     dragOverChannel = channel;
   }
 
@@ -40,15 +35,39 @@
 
   function handleDrop(e: DragEvent, targetChannel: ChannelId) {
     e.preventDefault();
-    if (draggedApp) {
-      onRouteApp(draggedApp.binary_name, targetChannel);
-      draggedApp = null;
-    }
     dragOverChannel = null;
+    if (e.dataTransfer) {
+      const data = e.dataTransfer.getData('application/json');
+      if (data) {
+        const stream = JSON.parse(data) as ActiveStream;
+        onRouteApp(stream.binary_name, targetChannel);
+      }
+    }
   }
 </script>
 
 <div class="mixer-view">
+  <div class="device-header">
+    <div class="device-col">
+      <span class="label">PLAYBACK DEVICE</span>
+      <select class="master-select" value={status.config.preferred_output_device || 'default'} on:change={(e) => onSetDevice('sink', e.currentTarget.value)}>
+        <option value="default">Default Headphone Sink</option>
+        {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'sink') as dev}
+          <option value={dev.name}>{dev.description || dev.name}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="device-col">
+      <span class="label">MICROPHONE</span>
+      <select class="master-select" value={status.config.preferred_input_device || 'default'} on:change={(e) => onSetDevice('source', e.currentTarget.value)}>
+        <option value="default">Default System Mic</option>
+        {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
+          <option value={dev.name}>{dev.description || dev.name}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+
   <div class="channel-strips">
     {#each channelList as ch}
       {@const info = CHANNELS[ch]}
@@ -57,503 +76,110 @@
       {@const presetId = status.config.active_presets[ch] ?? 'Default'}
       {@const streams = (status.streams || []).filter(s => ch === 'master' ? (!s.current_channel || s.current_channel === 'master') : (s.current_channel === ch))}
 
-      <div
-        class="strip"
-        class:drag-over={dragOverChannel === ch}
-        role="region"
-        aria-label="{info.label} channel strip"
-        on:dragover={(e) => handleDragOver(e, ch)}
-        on:dragleave={handleDragLeave}
-        on:drop={(e) => handleDrop(e, ch)}
-      >
-        <!-- Header -->
+      <div class="strip" class:drag-over={dragOverChannel === ch} role="region" on:dragover={(e) => handleDragOver(e, ch)} on:dragleave={handleDragLeave} on:drop={(e) => handleDrop(e, ch)}>
         <div class="strip-header">
-          <div class="header-left">
-            <span class="channel-indicator" style="background-color: {info.defaultColor};"></span>
-            <svelte:component this={channelIcons[ch]} size={16} color={info.defaultColor} />
-            <span class="channel-name">{info.label}</span>
-          </div>
-          <button class="menu-btn" title="Channel Settings">
-            <MoreVertical size={14} />
-          </button>
+          <svelte:component this={channelIcons[ch]} size={14} color={info.defaultColor} />
+          <span class="channel-name">{info.label}</span>
         </div>
 
-        <!-- Preset Pill -->
-        <button
-          class="preset-pill"
-          on:click={() => onOpenPresetBrowser(ch)}
-          title="Change Equalizer Preset"
-        >
-          <span class="preset-label">{presetId.replace(/^game_|^chat_|^media_|^mic_/, '').replace('_', ' ').toUpperCase()}</span>
+        <button class="preset-btn" on:click={() => onOpenPresetBrowser(ch)}>
+          {presetId.replace(/^game_|^chat_|^media_|^mic_/, '').replace('_', ' ').toUpperCase()}
         </button>
 
-        <!-- Device Selector -->
-        <div class="device-row">
-          <select
-            class="device-select"
-            value={status.config.preferred_output_device || 'default'}
-            on:change={(e) => onSetDevice('sink', e.currentTarget.value)}
-          >
-            <option value="default">Default Headphone Sink</option>
-            {#each (status.devices || []).filter(d => ch === 'mic' ? d.device_type.toLowerCase() === 'source' : d.device_type.toLowerCase() === 'sink') as dev}
-              <option value={dev.name}>{dev.description || dev.name}</option>
-            {/each}
-          </select>
-        </div>
-
-        <!-- Fader & Level Meter -->
-        <div class="fader-section">
-          <div class="meter-track">
-            <!-- Simulated active signal level with peak -->
-            <div
-              class="meter-fill"
-              style="height: {isMuted ? '0%' : Math.min(100, vol * 0.75)}%; background: linear-gradient(to top, #22c55e 60%, #eab308 85%, #ef4444 100%);"
-            ></div>
+        <div class="fader-container">
+          <div class="fader-track">
+            <div class="fader-fill" style="height: {isMuted ? '0%' : vol}%; background-color: {info.defaultColor};"></div>
           </div>
-
-          <input
-            type="range"
-            class="vertical-slider"
-            min="0"
-            max="150"
-            value={vol}
-            on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))}
-            title="Double-click to reset volume"
-            on:dblclick={() => onSetVolume(ch, 100)}
-          />
+          <input type="range" class="vertical-slider" min="0" max="100" value={vol} on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))} />
         </div>
 
-        <!-- Volume readout -->
-        <div class="volume-readout">
-          <span>{vol}%</span>
-        </div>
+        <div class="vol-text">{vol}%</div>
 
-        <!-- Mute Button -->
-        <button
-          class="mute-btn"
-          class:muted={isMuted}
-          on:click={() => onSetMute(ch, !isMuted)}
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {#if isMuted}
-            <VolumeX size={16} />
-          {:else}
-            <Volume2 size={16} />
-          {/if}
+        <button class="mute-btn" class:muted={isMuted} on:click={() => onSetMute(ch, !isMuted)}>
+          {#if isMuted} <VolumeX size={14} /> {:else} <Volume2 size={14} /> {/if}
         </button>
 
-        <!-- App Routing Chips Box -->
-        <div class="apps-box">
-          <div class="apps-box-header">
-            <span>{ch === 'master' ? 'ROUTED APPS' : 'APPS'} ({streams.length})</span>
-          </div>
-
-          <div class="chips-container">
-            {#each streams as stream (stream.id)}
-              <div
-                class="app-chip"
-                role="button"
-                tabindex="0"
-                draggable="true"
-                on:dragstart={() => handleDragStart(stream)}
-                title="Drag to move this application to another channel"
-              >
-                <span class="chip-dot" style="background-color: {info.defaultColor};"></span>
+        {#if ch !== 'mic'}
+          <div class="apps-box">
+            {#each streams as stream}
+              <div class="app-chip" role="button" tabindex="0" draggable="true" on:dragstart={(e) => handleDragStart(e, stream)}>
+                <span class="chip-color" style="background: {info.defaultColor};"></span>
                 <span class="chip-name">{stream.binary_name || stream.app_name}</span>
               </div>
-            {:else}
-              <div class="empty-apps-hint">
-                <span>Drop app here</span>
-              </div>
             {/each}
           </div>
-        </div>
+        {/if}
       </div>
     {/each}
   </div>
 
-  <!-- ChatMix Section -->
   <div class="chatmix-bar">
-    <div class="chatmix-header">
-      <Gamepad2 size={16} color="#22c55e" />
-      <span class="chatmix-title">CHATMIX BALANCE</span>
-      <MessageSquare size={16} color="#06b6d4" />
-    </div>
-
-    <div class="chatmix-slider-row">
-      <span class="chatmix-side-label game-label">GAME ({100 - Math.max(0, status.config.chatmix)}%)</span>
-
-      <input
-        type="range"
-        min="-100"
-        max="100"
-        value={status.config.chatmix}
-        on:input={(e) => onSetChatMix(Number(e.currentTarget.value))}
-        class="chatmix-slider"
-      />
-
-      <span class="chatmix-side-label chat-label">CHAT ({100 + Math.min(0, status.config.chatmix)}%)</span>
-    </div>
-
-    <button
-      class="chatmix-reset-btn"
-      on:click={() => onSetChatMix(0)}
-      title="Reset ChatMix balance to center"
-    >
-      CENTER (0)
-    </button>
+    <span class="chatmix-label">GAME ({100 - Math.max(0, status.config.chatmix)}%)</span>
+    <input type="range" min="-100" max="100" value={status.config.chatmix} on:input={(e) => onSetChatMix(Number(e.currentTarget.value))} class="chatmix-slider" />
+    <span class="chatmix-label chat">CHAT ({100 + Math.min(0, status.config.chatmix)}%)</span>
   </div>
 </div>
 
 <style>
-  .mixer-view {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 52px);
-    background-color: #0d1117;
-    padding: 16px;
-    gap: 16px;
-    overflow-y: auto;
-    user-select: none;
-  }
-
-  .channel-strips {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 12px;
-    flex: 1;
-    min-height: 480px;
-  }
-
-  .strip {
-    background: #161b22;
-    border: 1px solid #232b36;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px 10px;
-    transition: all 0.15s ease;
-  }
-
-  .strip.drag-over {
-    border-color: #3b82f6;
-    background: #1c2636;
-  }
-
-  .strip-header {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .channel-indicator {
-    width: 4px;
-    height: 12px;
-    border-radius: 2px;
-  }
-
-  .channel-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: #e2e8f0;
-  }
-
-  .menu-btn {
-    background: transparent;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 4px;
-  }
-
-  .menu-btn:hover {
-    color: #cbd5e1;
-    background: #242c38;
-  }
-
-  .preset-pill {
-    width: 100%;
-    padding: 5px 8px;
-    background: #1f2733;
-    border: 1px solid #2d3846;
-    border-radius: 5px;
-    color: #cbd5e1;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 8px;
-    transition: all 0.15s ease;
-  }
-
-  .preset-pill:hover {
-    background: #283344;
-    border-color: #3d4c60;
-  }
-
-  .device-row {
-    width: 100%;
-    margin-bottom: 12px;
-  }
-
-  .device-select {
-    width: 100%;
-    background: #13171d;
-    border: 1px solid #232a35;
-    border-radius: 5px;
-    color: #94a3b8;
-    font-size: 11px;
-    padding: 4px 6px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  .fader-section {
-    position: relative;
-    width: 38px;
-    height: 190px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 10px;
-  }
-
-  .meter-track {
-    position: absolute;
-    width: 10px;
-    height: 100%;
-    background: #0d1117;
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-  }
-
-  .meter-fill {
-    width: 100%;
-    transition: height 0.08s ease-out;
-  }
-
+  .mixer-view { display: flex; flex-direction: column; height: 100%; background: #0d1117; padding: 20px; gap: 20px; font-family: 'Inter', sans-serif; overflow-y: auto; }
+  .device-header { display: flex; gap: 20px; background: #161b22; padding: 12px 20px; border: 1px solid #30363d; border-radius: 4px; }
+  .device-col { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .label { font-size: 10px; font-weight: 700; color: #8b949e; letter-spacing: 0.5px; }
+  .master-select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 6px; font-size: 12px; border-radius: 2px; outline: none; }
+  
+  .channel-strips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; flex: 1; min-height: 400px; }
+  .strip { background: #161b22; border: 1px solid #30363d; border-radius: 4px; display: flex; flex-direction: column; align-items: center; padding: 16px 12px; transition: border-color 0.1s; }
+  .strip.drag-over { border-color: #58a6ff; background: #1c2128; }
+  
+  .strip-header { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .channel-name { font-size: 12px; font-weight: 700; color: #c9d1d9; }
+  
+  .preset-btn { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #8b949e; font-size: 10px; font-weight: 600; padding: 4px; border-radius: 2px; cursor: pointer; margin-bottom: 16px; }
+  .preset-btn:hover { background: #1f242c; color: #c9d1d9; }
+  
+  .fader-container { position: relative; height: 180px; width: 24px; display: flex; justify-content: center; align-items: center; margin-bottom: 12px; }
+  .fader-track { position: absolute; bottom: 0; width: 8px; height: 100%; background: #0d1117; border-radius: 4px; border: 1px solid #30363d; overflow: hidden; display: flex; align-items: flex-end; }
+  .fader-fill { width: 100%; transition: height 0.1s ease-out; }
+  
   .vertical-slider {
-    writing-mode: vertical-lr;
-    direction: rtl;
-    width: 32px;
-    height: 100%;
+    position: absolute;
+    width: 180px; /* Equal to container height */
+    height: 24px;
+    transform: rotate(-90deg);
     appearance: none;
     background: transparent;
+    outline: none;
     cursor: pointer;
     z-index: 2;
   }
-
+  
   .vertical-slider::-webkit-slider-thumb {
     appearance: none;
     width: 24px;
     height: 12px;
     background: #e2e8f0;
-    border-radius: 3px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-    border: 1px solid #475569;
-  }
-
-  .volume-readout {
-    font-family: monospace;
-    font-size: 12px;
-    font-weight: 700;
-    color: #e2e8f0;
-    margin-bottom: 8px;
-  }
-
-  .mute-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 6px;
-    border: 1px solid #2d3846;
-    background: #1c2430;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    margin-bottom: 12px;
-    transition: all 0.15s ease;
-  }
-
-  .mute-btn:hover {
-    background: #253040;
-    color: #f1f5f9;
-  }
-
-  .mute-btn.muted {
-    background: #3b1818;
-    border-color: #ef444488;
-    color: #ef4444;
-  }
-
-  .apps-box {
-    width: 100%;
-    flex: 1;
-    background: #11151c;
-    border: 1px solid #202732;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    padding: 6px;
-    overflow: hidden;
-  }
-
-  .apps-box-header {
-    font-size: 10px;
-    font-weight: 700;
-    color: #64748b;
-    margin-bottom: 6px;
-    letter-spacing: 0.5px;
-  }
-
-  .chips-container {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    overflow-y: auto;
-    flex: 1;
-  }
-
-  .app-chip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 7px;
-    background: #1c232d;
-    border: 1px solid #283340;
-    border-radius: 4px;
-    font-size: 11px;
-    color: #cbd5e1;
+    border-radius: 2px;
+    border: 1px solid #000;
     cursor: grab;
-    transition: all 0.15s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
   }
-
-  .app-chip:active {
-    cursor: grabbing;
-  }
-
-  .app-chip:hover {
-    background: #242e3b;
-    border-color: #38475a;
-  }
-
-  .chip-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-  }
-
-  .chip-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .empty-apps-hint {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    font-size: 10px;
-    color: #475569;
-    font-style: italic;
-  }
-
-  .chatmix-bar {
-    background: #161b22;
-    border: 1px solid #232b36;
-    border-radius: 8px;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-  }
-
-  .chatmix-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .chatmix-title {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #e2e8f0;
-  }
-
-  .chatmix-slider-row {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .chatmix-side-label {
-    font-size: 11px;
-    font-weight: 700;
-    font-family: monospace;
-  }
-
-  .game-label {
-    color: #22c55e;
-  }
-
-  .chat-label {
-    color: #06b6d4;
-  }
-
-  .chatmix-slider {
-    flex: 1;
-    appearance: none;
-    height: 6px;
-    background: #242c38;
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  .chatmix-slider::-webkit-slider-thumb {
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #38bdf8;
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
-  }
-
-  .chatmix-reset-btn {
-    padding: 5px 10px;
-    background: #202732;
-    border: 1px solid #2d3846;
-    border-radius: 5px;
-    color: #94a3b8;
-    font-size: 10px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .chatmix-reset-btn:hover {
-    background: #283344;
-    color: #f1f5f9;
-  }
+  .vertical-slider::-webkit-slider-thumb:active { cursor: grabbing; }
+  
+  .vol-text { font-size: 12px; font-weight: 600; color: #c9d1d9; font-family: monospace; margin-bottom: 8px; }
+  
+  .mute-btn { width: 32px; height: 32px; background: #0d1117; border: 1px solid #30363d; color: #8b949e; display: flex; justify-content: center; align-items: center; border-radius: 2px; cursor: pointer; margin-bottom: 16px; }
+  .mute-btn:hover { background: #1f242c; color: #c9d1d9; }
+  .mute-btn.muted { background: #3b1818; border-color: #f85149; color: #f85149; }
+  
+  .apps-box { width: 100%; flex: 1; background: #0d1117; border: 1px solid #30363d; padding: 4px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; border-radius: 2px; }
+  .app-chip { display: flex; align-items: center; gap: 6px; background: #161b22; padding: 4px; border-radius: 2px; font-size: 10px; color: #c9d1d9; cursor: grab; border: 1px solid transparent; }
+  .app-chip:hover { border-color: #30363d; }
+  .app-chip:active { cursor: grabbing; }
+  .chip-color { width: 4px; height: 4px; border-radius: 50%; }
+  
+  .chatmix-bar { display: flex; align-items: center; gap: 16px; background: #161b22; padding: 12px 20px; border: 1px solid #30363d; border-radius: 4px; }
+  .chatmix-label { font-size: 11px; font-weight: 700; color: #3fb950; font-family: monospace; }
+  .chatmix-label.chat { color: #58a6ff; }
+  .chatmix-slider { flex: 1; height: 4px; background: #0d1117; border: 1px solid #30363d; outline: none; appearance: none; border-radius: 2px; }
+  .chatmix-slider::-webkit-slider-thumb { appearance: none; width: 12px; height: 16px; background: #8b949e; border-radius: 1px; cursor: pointer; }
 </style>
