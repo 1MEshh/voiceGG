@@ -1,4 +1,4 @@
-# VoiceGG
+# VoiceGG steelseries gg alternative
 
 <p align="center">
   <img src="packaging/icons/voicegg.svg" alt="VoiceGG Logo" width="108" height="108" />
