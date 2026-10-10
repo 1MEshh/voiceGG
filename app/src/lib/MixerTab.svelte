@@ -14,33 +14,61 @@
   const channelList: ChannelId[] = ['master', 'game', 'chat', 'media', 'aux', 'mic'];
   const channelIcons: Record<ChannelId, any> = { master: SlidersHorizontal, game: Gamepad2, chat: MessageSquare, media: Music, aux: Headphones, mic: Mic };
 
+  let isDraggingAny = false;
   let dragOverChannel: ChannelId | null = null;
+  let dragCounters: Record<string, number> = {};
 
   function handleDragStart(e: DragEvent, stream: ActiveStream) {
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('application/json', JSON.stringify(stream));
+      isDraggingAny = true;
     }
+  }
+
+  function handleDragEnd() {
+    isDraggingAny = false;
+    dragOverChannel = null;
+    dragCounters = {};
+  }
+
+  function handleDragEnter(e: DragEvent, channel: ChannelId) {
+    e.preventDefault();
+    if (channel === 'mic') return;
+    dragCounters[channel] = (dragCounters[channel] || 0) + 1;
+    dragOverChannel = channel;
   }
 
   function handleDragOver(e: DragEvent, channel: ChannelId) {
     e.preventDefault();
+    if (channel === 'mic') return;
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     dragOverChannel = channel;
   }
 
-  function handleDragLeave() {
-    dragOverChannel = null;
+  function handleDragLeave(e: DragEvent, channel: ChannelId) {
+    e.preventDefault();
+    dragCounters[channel] = Math.max(0, (dragCounters[channel] || 0) - 1);
+    if (dragCounters[channel] === 0 && dragOverChannel === channel) {
+      dragOverChannel = null;
+    }
   }
 
   function handleDrop(e: DragEvent, targetChannel: ChannelId) {
     e.preventDefault();
+    isDraggingAny = false;
     dragOverChannel = null;
+    dragCounters = {};
+    if (targetChannel === 'mic') return;
     if (e.dataTransfer) {
       const data = e.dataTransfer.getData('application/json');
       if (data) {
-        const stream = JSON.parse(data) as ActiveStream;
-        onRouteApp(stream.binary_name, targetChannel);
+        try {
+          const stream = JSON.parse(data) as ActiveStream;
+          onRouteApp(stream.binary_name, targetChannel);
+        } catch (err) {
+          console.error("Failed to parse dragged stream", err);
+        }
       }
     }
   }
@@ -76,7 +104,17 @@
       {@const presetId = status.config.active_presets[ch] ?? 'Default'}
       {@const streams = (status.streams || []).filter(s => ch === 'master' ? (!s.current_channel || s.current_channel === 'master') : (s.current_channel === ch))}
 
-      <div class="strip" class:drag-over={dragOverChannel === ch} role="region" on:dragover={(e) => handleDragOver(e, ch)} on:dragleave={handleDragLeave} on:drop={(e) => handleDrop(e, ch)}>
+      <div
+        class="strip"
+        class:drag-over={dragOverChannel === ch}
+        class:is-dimmed={isDraggingAny && dragOverChannel !== ch && ch !== 'mic'}
+        class:is-eligible={isDraggingAny && ch !== 'mic'}
+        role="region"
+        on:dragenter={(e) => handleDragEnter(e, ch)}
+        on:dragover={(e) => handleDragOver(e, ch)}
+        on:dragleave={(e) => handleDragLeave(e, ch)}
+        on:drop={(e) => handleDrop(e, ch)}
+      >
         <div class="strip-header">
           <svelte:component this={channelIcons[ch]} size={14} color={info.defaultColor} />
           <span class="channel-name">{info.label}</span>
@@ -102,11 +140,23 @@
         {#if ch !== 'mic'}
           <div class="apps-box">
             {#each streams as stream}
-              <div class="app-chip" role="button" tabindex="0" draggable="true" on:dragstart={(e) => handleDragStart(e, stream)}>
+              <div
+                class="app-chip"
+                role="button"
+                tabindex="0"
+                draggable="true"
+                on:dragstart={(e) => handleDragStart(e, stream)}
+                on:dragend={handleDragEnd}
+              >
                 <span class="chip-color" style="background: {info.defaultColor};"></span>
                 <span class="chip-name">{stream.binary_name || stream.app_name}</span>
               </div>
             {/each}
+            {#if streams.length === 0}
+              <div class="empty-drop-hint" class:highlight={dragOverChannel === ch}>
+                {isDraggingAny ? 'DROP HERE' : 'NO APPS'}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -128,8 +178,42 @@
   .master-select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 6px; font-size: 12px; border-radius: 2px; outline: none; }
   
   .channel-strips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; flex: 1; min-height: 400px; }
-  .strip { background: #161b22; border: 1px solid #30363d; border-radius: 4px; display: flex; flex-direction: column; align-items: center; padding: 16px 12px; transition: border-color 0.1s; }
-  .strip.drag-over { border-color: #58a6ff; background: #1c2128; }
+  .strip {
+    background: var(--color-surface-1, #11151F);
+    border: 1px solid var(--color-border-default, #262E40);
+    border-radius: var(--radius-md, 6px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px;
+    transition: border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .strip.is-dimmed { opacity: 0.55; }
+  .strip.is-eligible { border-style: dashed; }
+  .strip.drag-over {
+    border-style: solid;
+    border-color: #38BDF8;
+    background: var(--color-surface-hover, #252D40);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+    transform: translateY(-3px);
+  }
+  .empty-drop-hint {
+    padding: 10px 4px;
+    border: 1px dashed var(--color-border-default, #262E40);
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--color-text-muted, #64748B);
+    text-align: center;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+    transition: all 0.15s ease;
+  }
+  .empty-drop-hint.highlight {
+    border-color: #38BDF8;
+    color: #38BDF8;
+    background: rgba(56, 189, 248, 0.1);
+  }
   
   .strip-header { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
   .channel-name { font-size: 12px; font-weight: 700; color: #c9d1d9; }
