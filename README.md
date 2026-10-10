@@ -61,14 +61,15 @@ VoiceGG creates 5 dedicated virtual channels directly inside the native PipeWire
 |---|---|---|
 | **PipeWire Native Graph** | ✅ Working | Direct PipeWire integration with zero-latency audio routing. |
 | **5 Virtual Channels** | ✅ Working | Master, Game, Chat, Media, and Aux with individual volume and mute controls. |
-| **Drag & Drop App Routing** | ✅ Working | Drag applications (Chrome, Discord, Steam) between channels with instant effect. |
+| **Drag & Drop App Routing** | ✅ Working | Glitch-free drag-and-drop state machine with dropzone cues and dimming. |
 | **ChatMix Balance** | ✅ Working | Dynamic balance between gaming audio and voice comms (-100 to +100). |
 | **Hardware Device Selection** | ✅ Working | Live switching between headphones, DACs, and microphones. |
-| **System Tray & Waybar** | ✅ Working | Closing the window minimizes to tray; full teardown on explicit Quit. |
+| **Sonar Dark Pro UI** | ✅ Working | Deep slate aesthetic, 60fps glowing neon slider thumbs, and tactile micro-interactions. |
+| **Microphone Tab Parity** | ✅ Working | Full layout parity with presets bar, favorites strip, 10-band EQ, ClearCast AI noise, and mic test. |
+| **System Tray & Waybar** | ✅ Working | Non-blocking tray menu with Master/Mic mute toggles and native Waybar module integration. |
 | **Rofi / Wofi Integration** | ✅ Working | Packaged with compliant `.desktop` entry and vector icon caches. |
 | **CLI & Hotkey Control** | ✅ Working | Full command-line interface for Hyprland / Sway keybinding integration. |
 | **Safe Panic Reset** | ✅ Working | Instant restoration to system default audio at any time (`voicegg panic`). |
-| **10-Band EQ & Mic DSP** | 🚧 In Progress | UI controls & DSP filters built; PipeWire filter-chain node wiring under active work. |
 
 ---
 
@@ -141,6 +142,44 @@ bind = SUPER SHIFT, F12, exec, voicegg ctl volume master -5
 
 # Emergency audio reset
 bind = SUPER CTRL, ESCAPE, exec, voicegg panic
+```
+
+---
+
+## Waybar Status Bar Integration
+
+VoiceGG includes a native status script and custom module for Waybar users:
+
+1. **Install helper script**:
+```bash
+cp packaging/waybar/waybar-voicegg.sh ~/.local/bin/
+chmod +x ~/.local/bin/waybar-voicegg.sh
+```
+
+2. **Add to `~/.config/waybar/config.jsonc`**:
+```jsonc
+"custom/voicegg": {
+    "format": "{}",
+    "exec": "$HOME/.local/bin/waybar-voicegg.sh",
+    "return-type": "json",
+    "interval": 2,
+    "on-click": "voicegg-gui",
+    "on-click-middle": "voicegg ctl mute master toggle",
+    "on-click-right": "voicegg ctl mute mic toggle",
+    "tooltip": true
+}
+```
+
+3. **Style in `~/.config/waybar/style.css`**:
+```css
+#custom-voicegg {
+    padding: 0 10px;
+    margin: 3px 4px;
+    background: #11151F;
+    border: 1px solid #262E40;
+    border-radius: 6px;
+    color: #10B981;
+}
 ```
 
 ---
