@@ -108,3 +108,48 @@ pub enum IpcEvent {
     /// Notification that the routing or app streams changed.
     AppsChanged,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ipc_request_shutdown_serialization() {
+        let req = IpcRequest::Shutdown;
+        let serialized = serde_json::to_string(&req).expect("Failed to serialize Shutdown request");
+        assert!(serialized.contains("Shutdown"));
+        let deserialized: IpcRequest =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+        assert_eq!(req, deserialized);
+    }
+
+    #[test]
+    fn test_set_volume_serialization() {
+        let req = IpcRequest::SetVolume {
+            channel: ChannelId::Master,
+            volume: 85,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_route_app_serialization() {
+        let req = IpcRequest::RouteApp {
+            binary_name: "cs2".to_string(),
+            target_channel: ChannelId::Game,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_ipc_response_serialization() {
+        let res = IpcResponse::Success;
+        let json = serde_json::to_string(&res).unwrap();
+        let decoded: IpcResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(res, decoded);
+    }
+}
