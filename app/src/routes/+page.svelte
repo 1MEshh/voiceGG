@@ -185,9 +185,11 @@
       {#if currentPresetObj}
         <MicTab
           currentPreset={currentPresetObj}
+          {allPresets}
           devices={status.devices}
           preferredInputDevice={status.config.preferred_input_device}
           onChangePreset={(p) => handleApplyPreset(p)}
+          onOpenBrowser={() => openPresetBrowser('mic')}
           onSetDevice={handleSetDevice}
         />
       {/if}
