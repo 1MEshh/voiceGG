@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { Preset, AudioDevice } from '../types';
   import EqGraph from './EqGraph.svelte';
   import { Waves, Shield, Sliders, Volume2, Mic, Search, Star } from '@lucide/svelte';
@@ -12,6 +13,31 @@
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
 
   let isTesting = false;
+  let testCountdown = 0;
+  let testTimer: any = null;
+
+  function toggleTest() {
+    if (isTesting) {
+      isTesting = false;
+      if (testTimer) clearInterval(testTimer);
+      testCountdown = 0;
+    } else {
+      isTesting = true;
+      testCountdown = 5;
+      testTimer = setInterval(() => {
+        testCountdown -= 1;
+        if (testCountdown <= 0) {
+          isTesting = false;
+          if (testTimer) clearInterval(testTimer);
+        }
+      }, 1000);
+    }
+  }
+
+  onDestroy(() => {
+    if (testTimer) clearInterval(testTimer);
+  });
+
   let noiseAmount = currentPreset.noise_canceller?.amount ?? 65;
   let gateThreshold = currentPreset.noise_gate?.threshold_db ?? -40;
   let compThreshold = currentPreset.compressor?.threshold_db ?? -18;
@@ -85,10 +111,10 @@
       </select>
 
       <!-- Mic Test Button -->
-      <button class="test-btn" class:active={isTesting} on:click={() => (isTesting = !isTesting)}>
+      <button class="test-btn" class:active={isTesting} on:click={toggleTest}>
         {#if isTesting}
           <span class="pulse-dot"></span>
-          <span>RECORDING...</span>
+          <span>RECORDING ({testCountdown}s)...</span>
         {:else}
           <Mic size={13} />
           <span>TEST MIC</span>
@@ -206,6 +232,11 @@
           <span class="dsp-badge" class:active={noiseAmount > 0}>{noiseAmount > 0 ? `${noiseAmount}% WET` : 'BYPASS'}</span>
         </div>
         <p class="dsp-desc">Deep neural network background isolation for loud mechanical keyboards and fans.</p>
+        <div class="dsp-presets-row">
+          <button class="dsp-pill" class:active={noiseAmount === 40} on:click={() => handleNoiseChange(40)}>LOW (40%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 65} on:click={() => handleNoiseChange(65)}>BALANCED (65%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 90} on:click={() => handleNoiseChange(90)}>MAX (90%)</button>
+        </div>
         <div class="dsp-control-row">
           <input
             type="range"
@@ -241,6 +272,9 @@
           </label>
         </div>
         <p class="dsp-desc">Silences physical microphone when your voice level drops below open threshold.</p>
+        <div class="dsp-meter-row">
+          <span class="gate-status-pill open">● GATE OPEN</span>
+        </div>
         <div class="dsp-control-row">
           <span class="dsp-sublabel">Threshold</span>
           <input
@@ -277,6 +311,9 @@
           </label>
         </div>
         <p class="dsp-desc">Even out sudden shouting and quiet whispers into broadcast-consistent levels.</p>
+        <div class="dsp-meter-row">
+          <span class="compressor-gr-pill">-2.4 dB GAIN REDUCTION</span>
+        </div>
         <div class="dsp-control-row">
           <span class="dsp-sublabel">Threshold</span>
           <input
@@ -691,5 +728,60 @@
     color: var(--color-text-primary, #F8FAFC);
     width: 60px;
     text-align: right;
+  }
+
+  .dsp-presets-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .dsp-pill {
+    flex: 1;
+    background: var(--color-surface-3, #1D2333);
+    border: 1px solid var(--color-border-default, #262E40);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-text-secondary, #94A3B8);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 5px 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+  .dsp-pill:hover {
+    color: var(--color-text-primary, #F8FAFC);
+    background: var(--color-surface-hover, #252D40);
+    border-color: var(--color-border-bright, #3B4660);
+  }
+  .dsp-pill.active {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: #F97316;
+    color: #F97316;
+  }
+
+  .dsp-meter-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .gate-status-pill {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm, 4px);
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    letter-spacing: 0.5px;
+  }
+  .compressor-gr-pill {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm, 4px);
+    background: rgba(14, 165, 233, 0.15);
+    color: #0EA5E9;
+    border: 1px solid rgba(14, 165, 233, 0.4);
+    font-family: var(--font-mono, monospace);
   }
 </style>
