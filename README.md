@@ -34,9 +34,9 @@ curl -fsSL https://raw.githubusercontent.com/1MEshh/voiceGG/main/install.sh | ba
 
 ---
 
-## Why VoiceGG? (The SteelSeries Sonar Linux Story)
+## Why VoiceGG? 
 
-When I made the full switch from Windows to Linux for gaming, there was one piece of software I couldn't live without: **SteelSeries Sonar / SteelSeries GG**.
+When I made the full switch from Windows to Linux for gaming and other stuff, there was one piece of software I couldn't live without: **SteelSeries Sonar / SteelSeries GG**.
 
 Having dedicated virtual audio channels for **Game**, **Chat**, and **Media**, separate volume controls for Discord and Counter-Strike, a hardware/software **ChatMix** slider to instantly quiet noisy teammates in clutch moments, and a **10-band parametric EQ** tuned for enemy footsteps was essential for competitive gaming.
 
