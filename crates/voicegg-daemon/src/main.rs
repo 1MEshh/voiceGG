@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! VoiceGG Background Daemon.
 //!
 //! Owns the PipeWire audio graph, runs the game detection engine,
@@ -49,6 +51,7 @@ impl RequestHandler for DaemonHandler {
                 }))
             }
             IpcRequest::SetVolume { channel, volume } => {
+                let volume = volume.min(150);
                 {
                     let mut cfg = self.config.write().unwrap();
                     cfg.volumes.insert(channel, volume);
@@ -92,6 +95,19 @@ impl RequestHandler for DaemonHandler {
                 binary_name,
                 target_channel,
             } => {
+                let clean_name = binary_name.trim();
+                if clean_name.is_empty()
+                    || clean_name.len() > 128
+                    || clean_name.contains('\0')
+                    || clean_name.contains('/')
+                    || clean_name.contains('\\')
+                    || clean_name.chars().any(|c| c.is_control())
+                {
+                    tracing::warn!("Rejected invalid or suspicious binary name: {:?}", binary_name);
+                    return IpcResponse::Error(format!("Invalid binary name '{}'", binary_name));
+                }
+                let binary_name = clean_name.to_string();
+
                 tracing::info!(
                     "Routing application '{}' to {}",
                     binary_name,
