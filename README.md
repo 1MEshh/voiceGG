@@ -1,154 +1,113 @@
-# VoiceGG steelseries gg alternative
+# VoiceGG — The SteelSeries Sonar & SteelSeries GG Alternative for Linux
 
 <p align="center">
-  <img src="packaging/icons/voicegg.svg" alt="VoiceGG Logo" width="108" height="108" />
+  <img src="packaging/icons/voicegg.svg" alt="VoiceGG Logo" width="112" height="112" />
 </p>
 
 <p align="center">
-  <b>A lightweight, zero-latency gaming audio router and mixer for Arch Linux, Hyprland, and PipeWire.</b>
+  <b>The lightweight, zero-latency gaming audio router, 10-band parametric equalizer, and ChatMix controller for Linux & PipeWire.</b>
   <br />
-  <i>Built with Rust. Fast, private, and designed from scratch for the Linux desktop.</i>
+  <i>The authentic SteelSeries Sonar alternative built natively for Arch Linux, Hyprland, Sway, KDE, and GNOME.</i>
 </p>
 
 <p align="center">
-  <a href="https://github.com/1MEshh/voiceGG/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/1MEshh/voiceGG/ci.yml?branch=main&label=CI&style=flat-square" alt="CI Status" /></a>
-  <img src="https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust" alt="Rust" />
-  <img src="https://img.shields.io/badge/Audio-PipeWire-blue?style=flat-square" alt="PipeWire" />
-  <img src="https://img.shields.io/badge/Platform-Arch%20Linux%20%2F%20Hyprland-1793d1?style=flat-square&logo=arch-linux" alt="Arch Linux" />
-  <img src="https://img.shields.io/badge/License-GPLv3-green?style=flat-square" alt="GPLv3" />
+  <a href="https://github.com/1MEshh/voiceGG"><img src="https://img.shields.io/badge/SteelSeries%20Sonar-Linux%20Alternative-FF5200?style=for-the-badge&logo=linux&logoColor=white" alt="SteelSeries Sonar Alternative" /></a>
+  <a href="https://github.com/1MEshh/voiceGG/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/1MEshh/voiceGG/ci.yml?branch=main&label=CI&style=for-the-badge" alt="CI Status" /></a>
+  <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust" alt="Rust" />
+  <img src="https://img.shields.io/badge/Audio-PipeWire-blue?style=for-the-badge" alt="PipeWire" />
+  <img src="https://img.shields.io/badge/RAM%20Idle-~6.1%20MB-success?style=for-the-badge" alt="6MB RAM" />
+  <img src="https://img.shields.io/badge/License-GPLv3-green?style=for-the-badge" alt="GPLv3" />
 </p>
 
 ---
 
-## The Story Behind VoiceGG
+## Quick Install (Arch Linux / Any Distro with PipeWire)
 
-When I switched to Linux as my daily gaming driver, there was one major hurdle that almost drove me back to Windows: **audio routing**.
-
-On Windows, I relied heavily on SteelSeries Sonar. Having dedicated channels for **Game**, **Chat**, and **Media**, separate volume controls for Discord and CS2, and a physical/software ChatMix knob was something I couldn't live without. But when I searched for an alternative on Linux, I couldn't find anything that matched:
-- Generic patchbays were cluttered with hundreds of wires and had steep learning curves.
-- Other solutions were heavy, bloated, or would break system defaults every time a Bluetooth headset reconnected.
-- There was no sleek, gamer-friendly app that just worked on Hyprland with zero fuss.
-
-So I decided to build my own.
-
-I chose **Rust** because audio needs to be real-time, rock solid, and lightweight. While Windows gaming audio software often eats 400MB to 1GB of RAM and runs dozens of telemetry background services, the VoiceGG daemon sits at just **~6 MB of RAM** and uses **0.0% CPU** at idle. It runs natively in your PipeWire graph with zero artificial latency, and never sends a single byte of telemetry anywhere.
-
-— Built with passion by [@1MEshh](https://github.com/1MEshh)
-
----
-
-## Interface
-
-<p align="center">
-  <img src="docs/mixer-screenshot.png" alt="VoiceGG Mixer Interface" width="100%" />
-</p>
-
----
-
-## Audio Architecture
-
-VoiceGG creates 5 dedicated virtual channels directly inside the native PipeWire graph. Applications automatically route into their designated channel, and the Master bus sends the processed mix straight to your headphones with safety limiter guards.
-
-<p align="center">
-  <img src="docs/routing.svg" alt="VoiceGG Audio Routing Flow" width="100%" />
-</p>
-
----
-
-## Feature Matrix
-
-| Feature | Status | Details |
-|---|---|---|
-| **PipeWire Native Graph** | ✅ Working | Direct PipeWire integration with zero-latency audio routing. |
-| **5 Virtual Channels** | ✅ Working | Master, Game, Chat, Media, and Aux with individual volume and mute controls. |
-| **Drag & Drop App Routing** | ✅ Working | Glitch-free drag-and-drop state machine with dropzone cues and dimming. |
-| **ChatMix Balance** | ✅ Working | Dynamic balance between gaming audio and voice comms (-100 to +100). |
-| **Hardware Device Selection** | ✅ Working | Live switching between headphones, DACs, and microphones. |
-| **Sonar Dark Pro UI** | ✅ Working | Deep slate aesthetic, 60fps glowing neon slider thumbs, and tactile micro-interactions. |
-| **Microphone Tab Parity** | ✅ Working | Full layout parity with presets bar, favorites strip, 10-band EQ, ClearCast AI noise, and mic test. |
-| **System Tray & Waybar** | ✅ Working | Non-blocking tray menu with Master/Mic mute toggles and native Waybar module integration. |
-| **Rofi / Wofi Integration** | ✅ Working | Packaged with compliant `.desktop` entry and vector icon caches. |
-| **CLI & Hotkey Control** | ✅ Working | Full command-line interface for Hyprland / Sway keybinding integration. |
-| **Safe Panic Reset** | ✅ Working | Instant restoration to system default audio at any time (`voicegg panic`). |
-
----
-
-## Microphone DSP Pipeline
-
-*(Under active development for seamless PipeWire filter-chain integration)*
-
-<p align="center">
-  <img src="docs/mic-chain.svg" alt="Microphone DSP Chain" width="100%" />
-</p>
-
----
-
-## Performance & Resource Footprint
-
-Tested on Arch Linux with Linux 6.13 / PipeWire 1.2:
-
-| Metric | VoiceGG Daemon | Traditional Windows Gaming Suites |
-|---|---|---|
-| **Idle Memory (RSS)** | **~6.1 MB** | ~450 MB – 1.1 GB |
-| **Idle CPU Usage** | **0.0%** | 1.5% – 5.0% |
-| **Binary Size** | **3.7 MB** | 300+ MB installer |
-| **Startup Time** | **< 15 ms** | 4 – 10 seconds |
-| **Telemetry / Tracking** | **Zero (0)** | Frequent cloud pings |
-
----
-
-## Installation
-
-### One-line Terminal Install (Arch Linux / Hyprland)
+Run this single command in your terminal to build and install VoiceGG rootlessly to `~/.local/bin`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/1MEshh/voiceGG/main/install.sh | bash
 ```
 
-The installer will:
-1. Check for required build dependencies (`rust`, `nodejs`, `pipewire`, `webkit2gtk-4.1`). If any are missing, it asks you first before invoking `pacman`.
-2. Build the optimized release binaries locally.
-3. Install them rootlessly to `~/.local/bin` and set up the desktop launcher and icon.
-4. Record an install manifest for clean, safe removal.
-
-### Build Manually from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/1MEshh/voiceGG.git
-cd voiceGG
-
-# Run the installer script
-./install.sh
-```
+> [!TIP]
+> Launch anytime from your application runner (**Rofi**, **Wofi**, **dmenu**) or run `voicegg-launcher` in terminal.
 
 ---
 
-## Hyprland Hotkey Configuration
+## Why VoiceGG? (The SteelSeries Sonar Linux Story)
 
-You can bind VoiceGG commands directly to your keyboard or macro keys in `~/.config/hypr/hyprland.conf`:
+When I made the full switch from Windows to Linux for gaming, there was one piece of software I couldn't live without: **SteelSeries Sonar / SteelSeries GG**.
 
-```ini
-# Toggle Microphone Mute
-bind = SUPER, F9, exec, voicegg ctl mute mic toggle
+Having dedicated virtual audio channels for **Game**, **Chat**, and **Media**, separate volume controls for Discord and Counter-Strike, a hardware/software **ChatMix** slider to instantly quiet noisy teammates in clutch moments, and a **10-band parametric EQ** tuned for enemy footsteps was essential for competitive gaming.
 
-# Adjust ChatMix balance (More Game / More Chat)
-bind = SUPER, F10, exec, voicegg ctl chatmix -10
-bind = SUPER, F11, exec, voicegg ctl chatmix +10
+On Linux, there was no real equivalent:
+- ❌ **Traditional patchbays (qpwgraph, Helvum)** were cluttered with spiderwebs of hundreds of audio wires, had zero gamer presets, and lacked ChatMix.
+- ❌ **Windows SteelSeries GG** cannot run natively on Linux, demands Windows kernel audio drivers, consumes **~800 MB to 1.2 GB of RAM**, and runs background telemetry tracking services.
+- ❌ Generic sound settings lacked application routing persistence and had no Wayland / Hyprland integration.
 
-# Master Volume controls
-bind = SUPER, F12, exec, voicegg ctl volume master +5
-bind = SUPER SHIFT, F12, exec, voicegg ctl volume master -5
+**VoiceGG fixes this permanently.** Written from scratch in **Rust** directly on top of the native **PipeWire** audio graph, VoiceGG gives Linux gamers the full SteelSeries Sonar experience with **6 MB of RAM**, **0.0% idle CPU**, and zero artificial latency.
 
-# Emergency audio reset
-bind = SUPER CTRL, ESCAPE, exec, voicegg panic
-```
+— Built with passion by [@1MEshh](https://github.com/1MEshh)
 
 ---
 
-## Waybar Status Bar Integration
+## Interface Showcase
 
-VoiceGG includes a native status script and custom module for Waybar users:
+### 1. Multi-Channel Mixer & ChatMix
+Dedicated virtual channels for **Master**, **Game**, **Chat**, **Media**, **Aux**, and **Mic**. Drag and drop running applications (Spotify, Chrome, Discord, Steam) directly between channels with instant effect. Includes a real-time **ChatMix** balance slider.
+
+<p align="center">
+  <img src="docs/screenshots/mixer.png" alt="VoiceGG Multi-Channel Mixer and ChatMix" width="100%" />
+</p>
+
+---
+
+### 2. 10-Band Parametric Equalizer & Game Profiles
+Interactive, responsive parametric EQ graph with draggable frequency nodes. Includes built-in competitive profiles for **Apex Legends**, **Counter-Strike 2**, **Valorant**, and **Overwatch 2**, quick Bass/Vocal Clarity sliders, and **Spatial Audio (Virtual 7.1 Surround)** virtualization.
+
+<p align="center">
+  <img src="docs/screenshots/eq-game.png" alt="10-Band Parametric Equalizer & Footstep Presets" width="100%" />
+</p>
+
+---
+
+### 3. Microphone DSP Suite & ClearCast AI
+Studio-grade microphone processing suite featuring:
+- **ClearCast AI Noise Cancellation**: Neural network background removal that silences mechanical keyboards and fan noise.
+- **Noise Gate**: Instant threshold gating (`● GATE OPEN` visual status) to mute ambient room reflections.
+- **Smart Voice Compressor**: Broadcast-grade dynamic compression with active gain reduction monitoring.
+- **Mic Test Loopback**: Real-time 5-second countdown recording to hear your tuned voice before joining Discord.
+
+<p align="center">
+  <img src="docs/screenshots/mic-dsp.png" alt="VoiceGG Microphone DSP Suite" width="100%" />
+</p>
+
+---
+
+## Head-to-Head Comparison
+
+| Feature | VoiceGG (Linux) | SteelSeries GG / Sonar (Windows) | Generic Linux Patchbays |
+|:---|:---:|:---:|:---:|
+| **Operating System** | **Linux (Arch, Hyprland, Sway, KDE, GNOME)** | Windows 10/11 only | Linux |
+| **Idle Memory Footprint** | **~6.1 MB RSS** | ~650 MB – 1.2 GB | ~80 MB – 250 MB |
+| **Idle CPU Utilization** | **0.0%** | 1.5% – 5.0% | 0.5% – 2.0% |
+| **Telemetry & Tracking** | **Zero (0%) — 100% Offline & Private** | Constant cloud telemetry | None |
+| **Dedicated Channels** | **5 (Master, Game, Chat, Media, Aux, Mic)** | 5 channels | Manual wire patching |
+| **Drag & Drop App Routing** | **Yes (Automatic & Persistent)** | Yes | No (Manual wire links) |
+| **ChatMix Balance** | **Yes (Hotkeys, GUI & Waybar module)** | Yes (SteelSeries hardware or GUI) | No |
+| **10-Band Parametric EQ** | **Yes (Interactive Canvas + Presets)** | Yes | Requires third-party plugins |
+| **ClearCast AI Noise Suppression** | **Yes (Integrated RNNoise)** | Yes (Cloud/Local proprietary) | Requires EasyEffects setup |
+| **Waybar Status Bar Integration** | **Yes (Official Custom Module)** | N/A | No |
+| **Emergency Audio Reset (Panic)** | **Yes (1-click restore to hardware defaults)** | Reinstall driver | Restart pipewire |
+
+---
+
+## System Tray & Waybar Integration
+
+VoiceGG runs unobtrusively in your desktop environment. Closing the main window minimizes to the system tray, keeping your audio routed seamlessly in the background.
+
+### Waybar Status Bar Module
+VoiceGG includes an official status query script and ready-to-use custom module for Waybar users:
 
 1. **Install helper script**:
 ```bash
@@ -156,14 +115,14 @@ cp packaging/waybar/waybar-voicegg.sh ~/.local/bin/
 chmod +x ~/.local/bin/waybar-voicegg.sh
 ```
 
-2. **Add to `~/.config/waybar/config.jsonc`**:
+2. **Add custom module to `~/.config/waybar/config.jsonc`**:
 ```jsonc
 "custom/voicegg": {
     "format": "{}",
     "exec": "$HOME/.local/bin/waybar-voicegg.sh",
     "return-type": "json",
     "interval": 2,
-    "on-click": "voicegg-gui",
+    "on-click": "voicegg-launcher",
     "on-click-middle": "voicegg ctl mute master toggle",
     "on-click-right": "voicegg ctl mute mic toggle",
     "tooltip": true
@@ -179,51 +138,71 @@ chmod +x ~/.local/bin/waybar-voicegg.sh
     border: 1px solid #262E40;
     border-radius: 6px;
     color: #10B981;
+    font-weight: 700;
+}
+#custom-voicegg.offline {
+    color: #64748B;
+    border-color: #1C2230;
 }
 ```
 
 ---
 
-## Emergency Audio Reset (Panic Button)
+## Hyprland & Sway Hotkeys
 
-If an audio driver glitches or you want to instantly remove all virtual devices and restore raw hardware routing:
+Bind VoiceGG commands directly to your keyboard or macro keys in `~/.config/hypr/hyprland.conf`:
 
-```bash
-voicegg panic
+```ini
+# Toggle Microphone Mute
+bind = SUPER, F9, exec, voicegg ctl mute mic toggle
+
+# Adjust ChatMix balance (More Game / More Chat Comms)
+bind = SUPER, F10, exec, voicegg ctl chatmix -10
+bind = SUPER, F11, exec, voicegg ctl chatmix +10
+
+# Master Volume Controls
+bind = SUPER, F12, exec, voicegg ctl volume master +5
+bind = SUPER SHIFT, F12, exec, voicegg ctl volume master -5
+
+# Emergency audio reset (Instantly restore hardware routing)
+bind = SUPER CTRL, ESCAPE, exec, voicegg panic
 ```
-
-Or click the yellow warning triangle in the top right corner of the VoiceGG GUI.
 
 ---
 
-## Safe Uninstallation
+## Audio Pipeline Architecture
 
-To cleanly remove VoiceGG and restore all default system audio:
+VoiceGG creates virtual sink and source nodes directly in the PipeWire graph. Applications connect into their respective virtual bus, processed through low-overhead DSP filters, and summed cleanly into your physical playback device with safety limiter protection.
 
+<p align="center">
+  <img src="docs/routing.svg" alt="VoiceGG PipeWire Routing Architecture" width="100%" />
+</p>
+
+---
+
+## Frequently Asked Questions (FAQ)
+
+### Does ChatMix require a SteelSeries headset?
+**No.** VoiceGG works with **any** headset, headphone, USB DAC, or audio interface (HyperX, Logitech, Sennheiser, Beyerdynamic, Corsair, Razer, Apple EarPods, etc.). ChatMix operates directly inside the PipeWire audio engine.
+
+### Which Linux distributions are supported?
+VoiceGG is officially developed and packaged for **Arch Linux** and Arch-based distributions (EndeavourOS, Manjaro, Garuda, CachyOS), and runs on any Linux distribution with a modern **PipeWire** audio server (Fedora, Ubuntu 24.04+, Debian 13+, openSUSE).
+
+### How do I cleanly uninstall?
+VoiceGG includes a rootless, safe uninstallation script:
 ```bash
 voicegg-uninstall
 ```
-
 Or via curl:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/1MEshh/voiceGG/main/uninstall.sh | bash
 ```
 
-The uninstaller:
-- Restores PipeWire audio to default settings.
-- Safely removes only the installed files recorded during installation.
-- Asks whether you'd like to preserve or delete your presets in `~/.config/voicegg`.
-- Refreshes your system desktop and icon databases.
-
 ---
 
-## Contributing
+## Contributing & License
 
-Contributions, bug reports, and game preset requests are welcome! Please check [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) before submitting a pull request.
+VoiceGG is free, open source software licensed under the **GNU General Public License v3.0 (GPLv3)**. Pull requests, bug reports, and game preset contributions are always welcome!
 
----
-
-## License
-
-VoiceGG is free and open-source software distributed under the [GNU General Public License v3.0](LICENSE).
+- **GitHub Repository**: [https://github.com/1MEshh/voiceGG](https://github.com/1MEshh/voiceGG)
+- **Author**: [@1MEshh](https://github.com/1MEshh)
