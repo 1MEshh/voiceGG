@@ -126,6 +126,11 @@ install -m 644 "$ROOT_DIR/packaging/systemd/voicegg-daemon.service" "$SYSTEMD_DI
 # Install uninstall script for user convenience
 install -m 755 "$ROOT_DIR/scripts/uninstall.sh" "$BIN_DIR/voicegg-uninstall"
 
+# Install waybar helper if present
+if [ -f "$ROOT_DIR/packaging/waybar/waybar-voicegg.sh" ]; then
+    install -m 755 "$ROOT_DIR/packaging/waybar/waybar-voicegg.sh" "$BIN_DIR/waybar-voicegg.sh"
+fi
+
 # 7. Write installation manifest for safe uninstallation
 cat <<EOF > "$MANIFEST_DIR/installed-files"
 $BIN_DIR/voicegg-daemon
@@ -133,6 +138,7 @@ $BIN_DIR/voicegg
 $BIN_DIR/voicegg-gui
 $BIN_DIR/voicegg-launcher
 $BIN_DIR/voicegg-uninstall
+$BIN_DIR/waybar-voicegg.sh
 $APP_DIR/voicegg.desktop
 $ICON_DIR/voicegg.svg
 $SYSTEMD_DIR/voicegg-daemon.service
