@@ -206,34 +206,131 @@ pub fn run() {
             client: Mutex::new(None),
         })
         .setup(|app| {
-            use tauri::{menu::{Menu, MenuItem}, tray::TrayIconBuilder, Manager};
-            
+            use tauri::{
+                menu::{Menu, MenuItem, PredefinedMenuItem},
+                tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+                Manager,
+            };
+
+            let title_i = MenuItem::with_id(app, "title", "VoiceGG — Sonar for Linux", false, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "toggle_win", "Show / Hide VoiceGG", true, None::<&str>)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let mute_master_i = MenuItem::with_id(app, "mute_master", "Toggle Mute Master", true, None::<&str>)?;
+            let mute_mic_i = MenuItem::with_id(app, "mute_mic", "Toggle Mute Microphone", true, None::<&str>)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
+            let panic_i = MenuItem::with_id(app, "panic", "Emergency Reset Audio", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit VoiceGG", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "Show Mixer", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
-            
+
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &title_i,
+                    &show_i,
+                    &sep1,
+                    &mute_master_i,
+                    &mute_mic_i,
+                    &sep2,
+                    &panic_i,
+                    &quit_i,
+                ],
+            )?;
+
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("VoiceGG Audio Mixer")
                 .menu(&menu)
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                })
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {
-                        let state = app.state::<IpcState>();
-                        let _ = tauri::async_runtime::block_on(async {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<IpcState>();
+                            let _ = state.send_request(voicegg_ipc::IpcRequest::Shutdown).await;
+                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                            app_handle.exit(0);
+                        });
+                    }
+                    "toggle_win" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                    "mute_master" => {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<IpcState>();
+                            if let Ok(voicegg_ipc::IpcResponse::Status(status)) =
+                                state.send_request(voicegg_ipc::IpcRequest::GetStatus).await
+                            {
+                                let current = status
+                                    .config
+                                    .muted
+                                    .get(&voicegg_core::ChannelId::Master)
+                                    .copied()
+                                    .unwrap_or(false);
+                                let _ = state
+                                    .send_request(voicegg_ipc::IpcRequest::SetMute {
+                                        channel: voicegg_core::ChannelId::Master,
+                                        muted: !current,
+                                    })
+                                    .await;
+                            }
+                        });
+                    }
+                    "mute_mic" => {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<IpcState>();
+                            if let Ok(voicegg_ipc::IpcResponse::Status(status)) =
+                                state.send_request(voicegg_ipc::IpcRequest::GetStatus).await
+                            {
+                                let current = status
+                                    .config
+                                    .muted
+                                    .get(&voicegg_core::ChannelId::Mic)
+                                    .copied()
+                                    .unwrap_or(false);
+                                let _ = state
+                                    .send_request(voicegg_ipc::IpcRequest::SetMute {
+                                        channel: voicegg_core::ChannelId::Mic,
+                                        muted: !current,
+                                    })
+                                    .await;
+                            }
+                        });
+                    }
+                    "panic" => {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<IpcState>();
                             let _ = state.send_request(voicegg_ipc::IpcRequest::PanicReset).await;
                         });
-                        let _ = std::process::Command::new("killall").arg("voicegg-daemon").spawn();
-                        app.exit(0);
-                    }
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
                     }
                     _ => {}
                 })
                 .build(app)?;
-                
+
             Ok(())
         })
         .on_window_event(|window, event| {
