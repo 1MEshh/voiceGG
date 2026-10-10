@@ -1,0 +1,12 @@
+{
+  "custom/voicegg": {
+    "format": "{}",
+    "exec": "$HOME/.local/bin/waybar-voicegg.sh",
+    "return-type": "json",
+    "interval": 2,
+    "on-click": "voicegg-gui",
+    "on-click-middle": "voicegg ctl mute master toggle",
+    "on-click-right": "voicegg ctl mute mic toggle",
+    "tooltip": true
+  }
+}

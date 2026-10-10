@@ -1,0 +1,25 @@
+/* VoiceGG Waybar Module Styling — Sonar Dark Pro Theme */
+#custom-voicegg {
+    padding: 0 12px;
+    margin: 3px 4px;
+    background: #11151F;
+    border: 1px solid #262E40;
+    border-radius: 6px;
+    color: #F8FAFC;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+#custom-voicegg.active {
+    color: #10B981;
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+#custom-voicegg.offline {
+    color: #64748B;
+    border-color: #1C2230;
+    background: #0B0E14;
+}
