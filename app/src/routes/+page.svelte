@@ -235,9 +235,9 @@
   }
 
   :global(body) {
-    background-color: #0d1117;
-    color: #f3f4f6;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background-color: var(--color-bg-app, #0B0E14);
+    color: var(--color-text-primary, #F8FAFC);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow: hidden;
   }
 
@@ -246,11 +246,12 @@
     flex-direction: column;
     height: 100vh;
     width: 100vw;
-    background-color: #0d1117;
+    background-color: var(--color-bg-app, #0B0E14);
   }
 
   .main-viewport {
     flex: 1;
     overflow: hidden;
+    background-color: var(--color-bg-app, #0B0E14);
   }
 </style>
