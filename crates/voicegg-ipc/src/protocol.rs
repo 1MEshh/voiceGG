@@ -67,6 +67,8 @@ pub enum IpcRequest {
     },
     /// Emergency panic: destroy all virtual devices and restore default system routing.
     PanicReset,
+    /// Gracefully shut down daemon, unlinking socket and tearing down virtual devices.
+    Shutdown,
 }
 
 /// Responses returned from Daemon to Client.

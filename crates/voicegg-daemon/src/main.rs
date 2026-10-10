@@ -22,6 +22,7 @@ struct DaemonHandler {
     config: Arc<RwLock<VoiceggConfig>>,
     active_game: Arc<RwLock<Option<String>>>,
     dirty: Arc<AtomicBool>,
+    shutdown_tx: tokio::sync::mpsc::UnboundedSender<()>,
 }
 
 impl RequestHandler for DaemonHandler {
@@ -162,6 +163,13 @@ impl RequestHandler for DaemonHandler {
                 let _ = gm.teardown_virtual_devices();
                 IpcResponse::Success
             }
+            IpcRequest::Shutdown => {
+                tracing::info!("Shutdown requested via IPC: initiating graceful termination");
+                let mut gm = self.graph.lock().unwrap();
+                let _ = gm.teardown_virtual_devices();
+                let _ = self.shutdown_tx.send(());
+                IpcResponse::Success
+            }
         }
     }
 }
@@ -238,11 +246,14 @@ async fn main() -> Result<()> {
     let active_game = Arc::new(RwLock::new(None));
     let dirty = Arc::new(AtomicBool::new(false));
 
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
+
     let handler = Arc::new(DaemonHandler {
         graph: Arc::clone(&graph),
         config: Arc::clone(&config),
         active_game: Arc::clone(&active_game),
         dirty: Arc::clone(&dirty),
+        shutdown_tx,
     });
 
     let socket_path = voicegg_ipc::default_socket_path();
@@ -345,11 +356,28 @@ async fn main() -> Result<()> {
 
     tracing::info!("voicegg-daemon running. Waiting for termination signals...");
 
-    signal::ctrl_c().await?;
-    tracing::info!("Shutdown signal received, cleaning up virtual devices...");
+    tokio::select! {
+        res = signal::ctrl_c() => {
+            if let Err(e) = res {
+                tracing::warn!("Failed to listen for Ctrl-C: {e}");
+            }
+            tracing::info!("Shutdown signal received via Ctrl-C, cleaning up virtual devices...");
+        }
+        _ = shutdown_rx.recv() => {
+            tracing::info!("Shutdown signal received via IPC, cleaning up virtual devices...");
+        }
+    }
 
-    let mut gm = graph.lock().unwrap();
-    gm.teardown_virtual_devices()?;
+    {
+        let mut gm = graph.lock().unwrap();
+        let _ = gm.teardown_virtual_devices();
+    }
+
+    if socket_path.exists() {
+        let _ = std::fs::remove_file(&socket_path);
+        tracing::info!("Cleaned up IPC socket file at {:?}", socket_path);
+    }
+
     tracing::info!("voicegg-daemon exited cleanly.");
 
     Ok(())
