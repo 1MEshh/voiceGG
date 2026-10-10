@@ -23,11 +23,7 @@
 
 <header class="top-nav">
   <div class="brand">
-    <div class="logo-icon">
-      <div class="bar bar-1"></div>
-      <div class="bar bar-2"></div>
-      <div class="bar bar-3"></div>
-    </div>
+    <img src="/logo.svg" alt="VoiceGG" class="logo-img" />
     <span class="app-title">VOICEGG</span>
   </div>
 
@@ -74,12 +70,9 @@
     user-select: none;
     font-family: 'Inter', sans-serif;
   }
-  .brand { display: flex; align-items: center; gap: 8px; }
-  .logo-icon { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
-  .bar { width: 4px; background: linear-gradient(180deg, #38bdf8 0%, #c084fc 100%); border-radius: 1px; }
-  .bar-1 { height: 10px; }
-  .bar-2 { height: 16px; }
-  .bar-3 { height: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo-img { width: 26px; height: 26px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transition: transform 0.15s ease; }
+  .logo-img:hover { transform: scale(1.08); }
   .app-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: #f8fafc; }
   
   .nav-tabs { display: flex; gap: 4px; }
