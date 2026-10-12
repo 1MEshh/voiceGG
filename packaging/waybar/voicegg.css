@@ -12,6 +12,8 @@
     transition: all 0.2s ease;
 }
 
+
+
 #custom-voicegg.active {
     color: #10B981;
     border-color: rgba(16, 185, 129, 0.4);
