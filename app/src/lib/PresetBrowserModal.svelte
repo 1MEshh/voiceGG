@@ -114,7 +114,7 @@
             on:click={() => onSelectPreset(preset)}
           >
             <div class="card-top">
-              <span class="category-badge">{$t(`channels.${preset.category}`) || preset.category.toUpperCase()}</span>
+              <span class="category-badge">{$t(`presets.${preset.category}`) || preset.category.toUpperCase()}</span>
               {#if isActive}
                 <div class="active-badge">
                   <Check size={12} color="var(--color-accent-brand)" />

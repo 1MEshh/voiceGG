@@ -170,6 +170,45 @@ mod tests {
     }
 
     #[test]
+    fn test_match_rainbow_six() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "RainbowSix.exe",
+            "Z:\\SteamLibrary\\steamapps\\common\\Rainbow Six Siege\\RainbowSix.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "rainbowsix");
+        assert_eq!(game.preset_id, "game_r6");
+    }
+
+    #[test]
+    fn test_match_tarkov() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "EscapeFromTarkov.exe",
+            "C:\\Battlestate Games\\BsgLauncher\\EscapeFromTarkov.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "tarkov");
+        assert_eq!(game.preset_id, "game_tarkov");
+    }
+
+    #[test]
+    fn test_match_warzone() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "cod.exe",
+            "C:\\Program Files (x86)\\Call of Duty\\cod.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "warzone");
+        assert_eq!(game.preset_id, "game_warzone");
+    }
+
+    #[test]
     fn test_no_match_for_browser() {
         let detector = GameDetector::new();
         let matched = detector.match_executable("firefox", "/usr/lib/firefox/firefox");
