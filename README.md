@@ -67,6 +67,23 @@ Engineered from the ground up in **Rust** directly interfacing with the native *
 
 ---
 
+## 📚 Table of Contents & Documentation
+
+| Document | Description |
+|:---|:---|
+| **[⚡ Quick Install](#-quick-install-arch-linux--any-distro-with-pipewire)** | One-liner curl install script and dependencies |
+| **[📖 The Story Behind VoiceGG](#-the-story-behind-voicegg)** | Personal journey from Windows Sonar to Arch Linux & Rust |
+| **[🏗️ PipeWire DSP Architecture](docs/ARCHITECTURE.md)** | Deep technical specification of virtual node graph and zero-copy filters |
+| **[🎯 Competitive Presets & Audio Tuning](docs/PRESETS.md)** | Calibrated 10-band EQ curves for CS2, Apex, Valorant, Tarkov, and R6 |
+| **[🖥️ Desktop Integration (Waybar & Hyprland)](docs/DESKTOP_INTEGRATION.md)** | Keybindings, Waybar status modules, SwayOSD, and Rofi selectors |
+| **[📊 Benchmarks & Performance Audit](docs/BENCHMARKS.md)** | 6.1 MB RSS vs 940 MB SteelSeries GG, <5.3ms latency, and 0.0% CPU |
+| **[🌍 Localization Architecture](docs/LOCALIZATION.md)** | Authentic Arabic pro-audio terminology and Thmanyah font setup |
+| **[🔧 Diagnostic & Troubleshooting Playbook](docs/TROUBLESHOOTING.md)** | Step-by-step fix for RNNoise, Xruns, latency tuning, and panic reset |
+| **[💻 CLI Reference Manual](docs/CLI_REFERENCE.md)** | Complete syntax for scripting, keybinds, ChatMix, and stream routing |
+| **[🇸🇦 الدليل باللغة العربية](README.ar.md)** | التوثيق الكامل باللغة العربية مع دعم اتجاه اليمين-إلى-اليسار (RTL) |
+
+---
+
 ## Interface Showcase
 
 ### 1. Multi-Channel Mixer & ChatMix
