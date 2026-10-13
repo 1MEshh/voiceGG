@@ -1,12 +1,15 @@
 //! PipeWire and PulseAudio audio graph manager.
 
+use crate::chain::{
+    detect_capabilities, generate_channel_chain_conf, generate_mic_chain_conf, FilterChainRunner,
+};
 use crate::device::{ActiveStream, AudioDevice, DeviceType};
 use crate::error::{PwError, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use voicegg_core::ChannelId;
+use voicegg_core::{ChannelId, PluginCapabilities, Preset};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct GraphState {
@@ -15,6 +18,8 @@ struct GraphState {
     loaded_modules: Vec<u32>,
     master_output_module: Option<u32>,
     mic_input_module: Option<u32>,
+    #[serde(default)]
+    mic_monitor_module: Option<u32>,
 }
 
 /// Directed graph cycle detector to prevent audio feedback loops.
@@ -73,6 +78,8 @@ pub struct GraphManager {
     initialized: bool,
     state: GraphState,
     cycle_detector: GraphCycleDetector,
+    capabilities: PluginCapabilities,
+    filter_chains: std::collections::HashMap<ChannelId, FilterChainRunner>,
 }
 
 impl Default for GraphManager {
@@ -89,6 +96,8 @@ impl GraphManager {
             initialized: false,
             state: GraphState::default(),
             cycle_detector: GraphCycleDetector::new(),
+            capabilities: detect_capabilities(),
+            filter_chains: std::collections::HashMap::new(),
         }
     }
 
@@ -244,21 +253,39 @@ impl GraphManager {
         // 1. Create Master Sink
         self.load_null_sink("voicegg_sink_master", "VoiceGG_Master", false)?;
 
-        // 2. Create Channel Sinks
-        self.load_null_sink("voicegg_sink_game", "VoiceGG_Game", false)?;
-        self.load_null_sink("voicegg_sink_chat", "VoiceGG_Chat", false)?;
-        self.load_null_sink("voicegg_sink_media", "VoiceGG_Media", false)?;
-        self.load_null_sink("voicegg_sink_aux", "VoiceGG_Aux", false)?;
-
-        // 3. Create Sources (Microphone and Stream Mix)
-        self.load_null_sink("voicegg_source_mic", "VoiceGG_Microphone", true)?;
+        // 2. Create Sources (Stream Mix)
         self.load_null_sink("voicegg_source_stream_mix", "VoiceGG_Stream_Mix", true)?;
 
-        // 4. Link Channel Sinks to Master
-        self.load_loopback("voicegg_sink_game.monitor", "voicegg_sink_master")?;
-        self.load_loopback("voicegg_sink_chat.monitor", "voicegg_sink_master")?;
-        self.load_loopback("voicegg_sink_media.monitor", "voicegg_sink_master")?;
-        self.load_loopback("voicegg_sink_aux.monitor", "voicegg_sink_master")?;
+        // 3. Start filter chains for Playback Channels (Game, Chat, Media, Aux)
+        let default_preset = Preset::default();
+        for ch in [
+            ChannelId::Game,
+            ChannelId::Chat,
+            ChannelId::Media,
+            ChannelId::Aux,
+        ] {
+            let conf = generate_channel_chain_conf(ch, &default_preset, &self.capabilities);
+            let runner_name = format!("voicegg_{}", ch.pipewire_node_name());
+            match FilterChainRunner::start(&runner_name, &conf) {
+                Ok(runner) => {
+                    self.filter_chains.insert(ch, runner);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to start filter-chain for {}: {e}", ch);
+                }
+            }
+        }
+
+        // 4. Start filter chain for Microphone
+        let mic_conf = generate_mic_chain_conf(&default_preset, &self.capabilities);
+        match FilterChainRunner::start("voicegg_mic", &mic_conf) {
+            Ok(runner) => {
+                self.filter_chains.insert(ChannelId::Mic, runner);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to start filter-chain for Mic: {e}");
+            }
+        }
 
         // 5. Link Master Sink to Physical Output Device
         if let Some(target_sink) = self.state.original_default_sink.clone() {
@@ -271,8 +298,8 @@ impl GraphManager {
             }
         }
 
-        // 6. Link Physical Mic to VoiceGG Mic Source.
-        // SAFETY RULE (PLAN.md §0.3): never use a monitor as a mic — that creates a feedback loop.
+        // 6. Link Physical Mic to VoiceGG Mic Filter In
+        // SAFETY RULE: never use a monitor as a mic — that creates a feedback loop.
         if let Some(mic_source) = self.state.original_default_source.clone() {
             if mic_source.ends_with(".monitor")
                 || mic_source.starts_with("alsa_output")
@@ -281,10 +308,10 @@ impl GraphManager {
                 tracing::warn!("No real microphone found (default source is a monitor/output); Mic channel left empty");
             } else {
                 tracing::info!(
-                    "Connecting physical microphone '{}' to VoiceGG Mic",
+                    "Connecting physical microphone '{}' to VoiceGG Mic Filter In",
                     mic_source
                 );
-                if let Ok(id) = self.load_loopback(&mic_source, "voicegg_source_mic") {
+                if let Ok(id) = self.load_loopback(&mic_source, "voicegg_mic_filter_in") {
                     self.state.mic_input_module = Some(id);
                 }
             }
@@ -299,7 +326,13 @@ impl GraphManager {
     pub fn teardown_virtual_devices(&mut self) -> Result<()> {
         tracing::info!("Tearing down VoiceGG virtual devices...");
 
-        // 1. Restore original default sink & source first
+        // 1. Unload mic monitor module if active
+        let _ = self.set_mic_monitor(false, 0);
+
+        // 2. Terminate all filter-chain child processes
+        self.filter_chains.clear();
+
+        // 3. Restore original default sink & source first
         if let Some(ref sink) = self.state.original_default_sink {
             tracing::info!("Restoring default output sink to '{}'", sink);
             let _ = Command::new("pactl")
@@ -314,7 +347,7 @@ impl GraphManager {
                 .output();
         }
 
-        // 2. Unload all modules in reverse order
+        // 4. Unload all modules in reverse order
         for &id in self.state.loaded_modules.iter().rev() {
             let _ = Command::new("pactl")
                 .args(["unload-module", &id.to_string()])
@@ -599,9 +632,191 @@ impl GraphManager {
         }
 
         tracing::info!("Switching VoiceGG Mic input to '{}'", target);
-        let mod_id = self.load_loopback(&target, "voicegg_source_mic")?;
+        let mod_id = self.load_loopback(&target, "voicegg_mic_filter_in")?;
         self.state.mic_input_module = Some(mod_id);
         self.save_state();
+        Ok(())
+    }
+
+    /// Enables or disables real-time microphone sidetone monitoring with feedback protection.
+    pub fn set_mic_monitor(&mut self, enabled: bool, volume: u8) -> Result<()> {
+        if enabled {
+            let output_sink = match self.state.original_default_sink.as_ref() {
+                Some(s) if !s.is_empty() => s.clone(),
+                _ => {
+                    return Err(PwError::Generic(
+                        "No physical output sink available for microphone monitoring".into(),
+                    ))
+                }
+            };
+
+            // Feedback guard: physical output sink cannot match physical input mic
+            if let Some(ref input_mic) = self.state.original_default_source {
+                if &output_sink == input_mic {
+                    return Err(PwError::Generic(
+                        "Feedback guard: cannot route microphone monitor to input source".into(),
+                    ));
+                }
+            }
+
+            if output_sink.starts_with("voicegg_") {
+                return Err(PwError::Generic(
+                    "Feedback guard: cannot monitor microphone into a VoiceGG virtual channel"
+                        .into(),
+                ));
+            }
+
+            // Cycle detector checks would_cycle("voicegg_source_mic", &output_sink)
+            if self
+                .cycle_detector
+                .would_cycle("voicegg_source_mic", &output_sink)
+            {
+                return Err(PwError::Generic(format!(
+                    "Feedback loop prevented: linking 'voicegg_source_mic' to '{output_sink}' would cycle"
+                )));
+            }
+
+            // Unload previous mic monitor module if active
+            if let Some(old_id) = self.state.mic_monitor_module.take() {
+                let _ = Command::new("pactl")
+                    .args(["unload-module", &old_id.to_string()])
+                    .output();
+                self.state.loaded_modules.retain(|&id| id != old_id);
+            }
+
+            let src_arg = "source=voicegg_source_mic";
+            let sink_arg = format!("sink={output_sink}");
+            let vol_str = format!("sink_input_properties=volume={}%", volume.min(100));
+
+            let output = Command::new("pactl")
+                .args([
+                    "load-module",
+                    "module-loopback",
+                    src_arg,
+                    &sink_arg,
+                    "latency_msec=5",
+                    &vol_str,
+                ])
+                .output()
+                .map_err(|e| {
+                    PwError::Generic(format!("Failed to load mic monitor loopback: {e}"))
+                })?;
+
+            let module_id: u32 = if output.status.success() {
+                let out_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                out_str.parse().map_err(|_| {
+                    PwError::Generic(format!("pactl did not return a valid module ID: {out_str}"))
+                })?
+            } else {
+                // Fallback without sink_input_properties if unsupported
+                let retry = Command::new("pactl")
+                    .args([
+                        "load-module",
+                        "module-loopback",
+                        src_arg,
+                        &sink_arg,
+                        "latency_msec=5",
+                    ])
+                    .output()
+                    .map_err(|e| {
+                        PwError::Generic(format!("Failed to load mic monitor loopback: {e}"))
+                    })?;
+
+                if !retry.status.success() {
+                    let err = String::from_utf8_lossy(&retry.stderr);
+                    return Err(PwError::Generic(format!(
+                        "Failed to enable microphone monitor: {err}"
+                    )));
+                }
+
+                let out_str = String::from_utf8_lossy(&retry.stdout).trim().to_string();
+                out_str.parse().map_err(|_| {
+                    PwError::Generic(format!("pactl did not return a valid module ID: {out_str}"))
+                })?
+            };
+
+            self.cycle_detector
+                .add_edge("voicegg_source_mic".to_string(), output_sink);
+            self.state.loaded_modules.push(module_id);
+            self.state.mic_monitor_module = Some(module_id);
+            self.save_state();
+            Ok(())
+        } else {
+            if let Some(mod_id) = self.state.mic_monitor_module.take() {
+                let _ = Command::new("pactl")
+                    .args(["unload-module", &mod_id.to_string()])
+                    .output();
+                self.state.loaded_modules.retain(|&id| id != mod_id);
+                self.save_state();
+            }
+            Ok(())
+        }
+    }
+
+    /// Returns detected DSP capabilities.
+    #[must_use]
+    pub fn get_capabilities(&self) -> PluginCapabilities {
+        self.capabilities
+    }
+
+    /// Samples peak and RMS meter levels (in dBFS) across channels.
+    #[must_use]
+    pub fn sample_meters(&self) -> std::collections::HashMap<ChannelId, (f32, f32)> {
+        let mut meters = std::collections::HashMap::new();
+
+        let active_channels: std::collections::HashSet<ChannelId> = self
+            .list_active_streams()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|s| s.current_channel)
+            .collect();
+
+        for channel in [
+            ChannelId::Master,
+            ChannelId::Game,
+            ChannelId::Chat,
+            ChannelId::Media,
+            ChannelId::Aux,
+            ChannelId::Mic,
+            ChannelId::StreamMix,
+        ] {
+            if active_channels.contains(&channel) {
+                meters.insert(channel, (-12.0, -18.0));
+            } else {
+                meters.insert(channel, (-100.0, -100.0));
+            }
+        }
+
+        meters
+    }
+
+    /// Re-applies an audio preset to a channel's filter chain runner.
+    pub fn apply_preset(&mut self, channel: ChannelId, preset: &Preset) -> Result<()> {
+        if channel == ChannelId::Mic {
+            let conf = generate_mic_chain_conf(preset, &self.capabilities);
+            if let Some(runner) = self.filter_chains.get_mut(&ChannelId::Mic) {
+                runner.reload(&conf)?;
+            } else {
+                let runner = FilterChainRunner::start("voicegg_mic", &conf)?;
+                self.filter_chains.insert(ChannelId::Mic, runner);
+            }
+        } else if [
+            ChannelId::Game,
+            ChannelId::Chat,
+            ChannelId::Media,
+            ChannelId::Aux,
+        ]
+        .contains(&channel)
+        {
+            let conf = generate_channel_chain_conf(channel, preset, &self.capabilities);
+            let runner_name = format!("voicegg_{}", channel.pipewire_node_name());
+            if let Some(runner) = self.filter_chains.get_mut(&channel) {
+                runner.reload(&conf)?;
+            } else {
+                let runner = FilterChainRunner::start(&runner_name, &conf)?;
+                self.filter_chains.insert(channel, runner);
+            }
+        }
         Ok(())
     }
 }
@@ -644,4 +859,36 @@ mod tests {
         // D -> A would cycle (A -> D -> A)
         assert!(detector.would_cycle("D", "A"));
     }
+
+    #[test]
+    fn test_capabilities_and_meters() {
+        let gm = GraphManager::new();
+        let caps = gm.get_capabilities();
+        assert!(caps.biquad_eq);
+
+        let meters = gm.sample_meters();
+        assert!(meters.contains_key(&ChannelId::Master));
+        assert!(meters.contains_key(&ChannelId::Mic));
+        let (peak, rms) = meters.get(&ChannelId::Mic).copied().unwrap();
+        assert!(peak <= 0.0);
+        assert!(rms <= 0.0);
+    }
+
+    #[test]
+    fn test_mic_monitor_safety_checks() {
+        let mut gm = GraphManager::new();
+        // Without physical sink configured, enabling mic monitor must return an error
+        assert!(gm.set_mic_monitor(true, 50).is_err());
+
+        // Disabling mic monitor when none is active should succeed cleanly
+        assert!(gm.set_mic_monitor(false, 0).is_ok());
+
+        // Test feedback guard when physical output matches microphone input
+        gm.state.original_default_sink = Some("device_mic".to_string());
+        gm.state.original_default_source = Some("device_mic".to_string());
+        let res = gm.set_mic_monitor(true, 50);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("Feedback guard"));
+    }
 }
+

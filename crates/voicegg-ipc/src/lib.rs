@@ -12,7 +12,7 @@ pub mod server;
 
 pub use client::IpcClient;
 pub use error::{IpcError, Result};
-pub use protocol::{IpcEvent, IpcRequest, IpcResponse, SystemStatus};
+pub use protocol::{ChannelMeter, IpcEvent, IpcRequest, IpcResponse, SystemStatus};
 pub use server::{IpcServer, RequestHandler};
 
 use std::path::PathBuf;

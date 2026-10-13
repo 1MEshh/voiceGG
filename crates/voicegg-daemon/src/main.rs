@@ -24,6 +24,7 @@ struct DaemonHandler {
     config: Arc<RwLock<VoiceggConfig>>,
     active_game: Arc<RwLock<Option<String>>>,
     dirty: Arc<AtomicBool>,
+    mic_monitor_state: Arc<Mutex<(bool, u8)>>,
     shutdown_tx: tokio::sync::mpsc::UnboundedSender<()>,
 }
 
@@ -35,19 +36,24 @@ impl RequestHandler for DaemonHandler {
                     let lock = self.config.read().unwrap();
                     lock.clone()
                 };
-                let (devices, streams) = {
+                let (devices, streams, caps) = {
                     let gm = self.graph.lock().unwrap();
                     (
                         gm.list_devices().unwrap_or_default(),
                         gm.list_active_streams().unwrap_or_default(),
+                        gm.get_capabilities(),
                     )
                 };
+                let (mic_mon_enabled, mic_mon_vol) = *self.mic_monitor_state.lock().unwrap();
                 let game = self.active_game.read().unwrap().clone();
                 IpcResponse::Status(Box::new(SystemStatus {
                     config: cfg,
                     devices,
                     streams,
                     active_game: game,
+                    capabilities: caps,
+                    mic_monitor_enabled: mic_mon_enabled,
+                    mic_monitor_volume: mic_mon_vol,
                 }))
             }
             IpcRequest::SetVolume { channel, volume } => {
@@ -86,10 +92,55 @@ impl RequestHandler for DaemonHandler {
                 {
                     let mut cfg = self.config.write().unwrap();
                     cfg.active_presets.insert(channel, preset.id.clone());
+                    if preset.category == voicegg_core::PresetCategory::Custom {
+                        cfg.custom_presets.insert(preset.id.clone(), preset.clone());
+                    }
+                }
+                {
+                    let mut gm = self.graph.lock().unwrap();
+                    if let Err(e) = gm.apply_preset(channel, &preset) {
+                        tracing::warn!("Failed to apply preset '{}' to {}: {e}", preset.name, channel);
+                    }
                 }
                 self.dirty.store(true, Ordering::Relaxed);
                 tracing::info!("Preset '{}' applied to {}", preset.name, channel);
                 IpcResponse::Success
+            }
+            IpcRequest::SetMicMonitor { enabled, volume } => {
+                let mut gm = self.graph.lock().unwrap();
+                match gm.set_mic_monitor(enabled, volume) {
+                    Ok(()) => {
+                        let mut mon = self.mic_monitor_state.lock().unwrap();
+                        *mon = (enabled, volume);
+                        tracing::info!("Mic monitor set to enabled={}, volume={}", enabled, volume);
+                        IpcResponse::Success
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to set mic monitor: {e}");
+                        IpcResponse::Error(e.to_string())
+                    }
+                }
+            }
+            IpcRequest::GetCapabilities => {
+                let gm = self.graph.lock().unwrap();
+                IpcResponse::Capabilities(gm.get_capabilities())
+            }
+            IpcRequest::GetMeters => {
+                let gm = self.graph.lock().unwrap();
+                let raw_meters = gm.sample_meters();
+                let meters = raw_meters
+                    .into_iter()
+                    .map(|(ch, (peak, rms))| {
+                        (
+                            ch,
+                            voicegg_ipc::ChannelMeter {
+                                peak_dbfs: peak,
+                                rms_dbfs: rms,
+                            },
+                        )
+                    })
+                    .collect();
+                IpcResponse::Meters(meters)
             }
             IpcRequest::RouteApp {
                 binary_name,
@@ -261,6 +312,7 @@ async fn main() -> Result<()> {
     let config = Arc::new(RwLock::new(loaded_config));
     let active_game = Arc::new(RwLock::new(None));
     let dirty = Arc::new(AtomicBool::new(false));
+    let mic_monitor_state = Arc::new(Mutex::new((false, 75_u8)));
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -269,6 +321,7 @@ async fn main() -> Result<()> {
         config: Arc::clone(&config),
         active_game: Arc::clone(&active_game),
         dirty: Arc::clone(&dirty),
+        mic_monitor_state,
         shutdown_tx,
     });
 

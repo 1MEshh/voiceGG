@@ -251,3 +251,28 @@ impl Default for LimiterConfig {
         }
     }
 }
+
+/// Available DSP plugin capabilities detected on the host system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginCapabilities {
+    /// Whether RNNoise LADSPA plugin is installed.
+    pub rnnoise: bool,
+    /// Whether a noise gate plugin is installed.
+    pub gate: bool,
+    /// Whether a compressor plugin is installed.
+    pub compressor: bool,
+    /// Whether PipeWire builtin biquad EQ is available.
+    pub biquad_eq: bool,
+}
+
+impl Default for PluginCapabilities {
+    fn default() -> Self {
+        Self {
+            rnnoise: false,
+            gate: false,
+            compressor: false,
+            biquad_eq: true,
+        }
+    }
+}
+

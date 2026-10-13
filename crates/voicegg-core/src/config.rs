@@ -1,6 +1,7 @@
 //! Persistent application configuration and user settings.
 
 use crate::channel::ChannelId;
+use crate::preset::Preset;
 use crate::theme::ThemeConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -46,6 +47,9 @@ pub struct VoiceggConfig {
     pub preferred_input_device: Option<String>,
     /// Visual UI theme settings.
     pub theme: ThemeConfig,
+    /// User customized presets persisted across sessions.
+    #[serde(default)]
+    pub custom_presets: HashMap<String, Preset>,
 }
 
 impl Default for VoiceggConfig {
@@ -119,6 +123,7 @@ impl Default for VoiceggConfig {
             preferred_output_device: None,
             preferred_input_device: None,
             theme: ThemeConfig::default(),
+            custom_presets: HashMap::new(),
         }
     }
 }

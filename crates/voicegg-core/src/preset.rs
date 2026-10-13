@@ -55,6 +55,24 @@ pub struct Preset {
     pub limiter: Option<LimiterConfig>,
 }
 
+impl Default for Preset {
+    fn default() -> Self {
+        Self {
+            schema: Self::CURRENT_SCHEMA,
+            id: "flat".to_string(),
+            name: "Flat".to_string(),
+            description: "Flat reference audio preset".to_string(),
+            category: PresetCategory::Game,
+            tags: vec!["flat".to_string(), "neutral".to_string()],
+            eq: EqConfig::default(),
+            noise_canceller: None,
+            compressor: None,
+            noise_gate: None,
+            limiter: Some(LimiterConfig::default()),
+        }
+    }
+}
+
 impl Preset {
     /// Current schema version.
     pub const CURRENT_SCHEMA: u32 = 1;

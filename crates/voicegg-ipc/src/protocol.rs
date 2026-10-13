@@ -1,8 +1,18 @@
 //! Message schemas and structures exchanged over IPC.
 
 use serde::{Deserialize, Serialize};
-use voicegg_core::{ChannelId, Preset, VoiceggConfig};
+use std::collections::HashMap;
+use voicegg_core::{ChannelId, PluginCapabilities, Preset, VoiceggConfig};
 use voicegg_pw::{ActiveStream, AudioDevice};
+
+/// Peak and RMS audio meter levels for a channel in dBFS.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ChannelMeter {
+    /// Peak level in dBFS.
+    pub peak_dbfs: f32,
+    /// RMS level in dBFS.
+    pub rms_dbfs: f32,
+}
 
 /// Overall system state snapshot returned by the daemon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -15,6 +25,12 @@ pub struct SystemStatus {
     pub streams: Vec<ActiveStream>,
     /// Active running game name if auto-detected.
     pub active_game: Option<String>,
+    /// Available DSP plugin capabilities.
+    pub capabilities: PluginCapabilities,
+    /// Whether microphone monitoring (sidetone) is active.
+    pub mic_monitor_enabled: bool,
+    /// Microphone monitor volume in percentage (0 .. 100).
+    pub mic_monitor_volume: u8,
 }
 
 /// Commands/Requests sent from Client (CLI / GUI) to Daemon.
@@ -65,6 +81,17 @@ pub enum IpcRequest {
         /// Physical device node name (e.g. alsa_output.usb-... or default).
         device_name: String,
     },
+    /// Set microphone monitor (sidetone) loopback state and volume.
+    SetMicMonitor {
+        /// Whether monitoring is enabled.
+        enabled: bool,
+        /// Monitor loopback volume (0 .. 100).
+        volume: u8,
+    },
+    /// Query detected DSP plugin capabilities.
+    GetCapabilities,
+    /// Query instantaneous audio meter levels across channels.
+    GetMeters,
     /// Emergency panic: destroy all virtual devices and restore default system routing.
     PanicReset,
     /// Gracefully shut down daemon, unlinking socket and tearing down virtual devices.
@@ -81,6 +108,10 @@ pub enum IpcResponse {
     Status(Box<SystemStatus>),
     /// Audio devices list payload.
     Devices(Vec<AudioDevice>),
+    /// Host DSP plugin capabilities.
+    Capabilities(PluginCapabilities),
+    /// Channel audio meter snapshot.
+    Meters(HashMap<ChannelId, ChannelMeter>),
     /// Operation failed with an error message.
     Error(String),
 }
@@ -151,5 +182,43 @@ mod tests {
         let json = serde_json::to_string(&res).unwrap();
         let decoded: IpcResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(res, decoded);
+    }
+
+    #[test]
+    fn test_mic_monitor_request_serialization() {
+        let req = IpcRequest::SetMicMonitor {
+            enabled: true,
+            volume: 75,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_capabilities_and_meters_serialization() {
+        let caps = PluginCapabilities {
+            rnnoise: true,
+            gate: false,
+            compressor: true,
+            biquad_eq: true,
+        };
+        let resp = IpcResponse::Capabilities(caps);
+        let json = serde_json::to_string(&resp).unwrap();
+        let decoded: IpcResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(resp, decoded);
+
+        let mut meters_map = HashMap::new();
+        meters_map.insert(
+            ChannelId::Mic,
+            ChannelMeter {
+                peak_dbfs: -12.5,
+                rms_dbfs: -20.1,
+            },
+        );
+        let resp_meters = IpcResponse::Meters(meters_map);
+        let json_m = serde_json::to_string(&resp_meters).unwrap();
+        let decoded_m: IpcResponse = serde_json::from_str(&json_m).unwrap();
+        assert_eq!(resp_meters, decoded_m);
     }
 }

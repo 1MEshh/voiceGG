@@ -14,7 +14,7 @@ pub use channel::ChannelId;
 pub use config::{AppRouteRule, VoiceggConfig};
 pub use dsp_types::{
     CompressorConfig, EqBand, EqConfig, FilterType, LimiterConfig, NoiseCancellerConfig,
-    NoiseGateConfig,
+    NoiseGateConfig, PluginCapabilities,
 };
 pub use error::{CoreError, Result};
 pub use preset::{Preset, PresetCategory};

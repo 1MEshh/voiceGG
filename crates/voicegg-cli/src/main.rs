@@ -95,6 +95,14 @@ async fn main() -> Result<()> {
                 } else {
                     println!("=== VoiceGG Status ===");
                     println!("ChatMix Balance: {}", status.config.chatmix);
+                    println!(
+                        "Mic Monitoring: {}",
+                        if status.mic_monitor_enabled {
+                            format!("ON ({}%)", status.mic_monitor_volume)
+                        } else {
+                            "OFF".to_string()
+                        }
+                    );
                     println!("Channels:");
                     for (ch, vol) in &status.config.volumes {
                         let muted = status.config.muted.get(ch).copied().unwrap_or(false);
