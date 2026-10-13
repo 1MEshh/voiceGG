@@ -551,6 +551,35 @@ impl GraphManager {
         Ok(())
     }
 
+    /// Sets the volume of a specific playback stream (sink-input) by ID (0 .. 150%).
+    pub fn set_stream_volume(&self, stream_id: u32, volume: u8) -> Result<()> {
+        let vol_str = format!("{volume}%");
+        let output = Command::new("pactl")
+            .args(["set-sink-input-volume", &stream_id.to_string(), &vol_str])
+            .output()
+            .map_err(|e| PwError::Generic(format!("Failed to set sink input volume: {e}")))?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(PwError::Generic(format!(
+                "Failed to set volume on stream {stream_id}: {err}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Sets the volume for all active streams matching the binary name.
+    pub fn set_app_volume_by_name(&self, binary: &str, volume: u8) -> Result<()> {
+        if let Ok(streams) = self.list_active_streams() {
+            for stream in streams {
+                if stream.binary_name.eq_ignore_ascii_case(binary) {
+                    let _ = self.set_stream_volume(stream.id, volume);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Sets the volume of a channel sink or source in PipeWire (0 .. 150%).
     pub fn set_channel_volume(&self, channel: ChannelId, volume: u8) -> Result<()> {
         let node_name = channel.pipewire_node_name();

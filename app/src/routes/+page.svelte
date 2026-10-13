@@ -150,6 +150,19 @@
     }
   }
 
+  async function handleSetAppVolume(binaryName: string, volume: number) {
+    if (!status.config.app_volumes) {
+      status.config.app_volumes = {};
+    }
+    status.config.app_volumes[binaryName] = volume;
+    status = { ...status };
+    try {
+      await invoke('set_app_volume', { binaryName, volume });
+    } catch (e) {
+      console.error('Failed to set app volume:', e);
+    }
+  }
+
   async function handleApplyPreset(preset: Preset) {
     const ch = activeTab === 'mixer' ? browserTargetChannel : activeTab;
     status.config.active_presets[ch] = preset.id;
@@ -249,6 +262,7 @@
         onOpenPresetBrowser={openPresetBrowser}
         onSetDevice={handleSetDevice}
         onSetMicMonitor={handleSetMicMonitor}
+        onSetAppVolume={handleSetAppVolume}
       />
     {:else if activeTab === 'mic'}
       {#if currentPresetObj}

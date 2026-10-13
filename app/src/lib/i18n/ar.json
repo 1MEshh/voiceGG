@@ -50,7 +50,9 @@
     "channel_strip_aria": "شريط قناة {channel}",
     "channel_vol_aria": "مستوى صوت {channel}",
     "preset_aria": "الإعداد المسبق: {preset}",
-    "route_app_aria": "توجيه تطبيق {name}"
+    "route_app_aria": "توجيه تطبيق {name}",
+    "app_volume": "مستوى صوت التطبيق",
+    "app_volume_title": "مستوى صوت {name}: {vol}٪"
   },
   "mic": {
     "live_monitoring": "مراقبة الصوت المباشرة",

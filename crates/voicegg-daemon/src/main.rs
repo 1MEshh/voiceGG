@@ -251,6 +251,27 @@ impl RequestHandler for DaemonHandler {
                 self.dirty.store(true, Ordering::Relaxed);
                 IpcResponse::Success
             }
+            IpcRequest::SetAppVolume {
+                binary_name,
+                volume,
+            } => {
+                tracing::info!(binary = %binary_name, volume, "Setting application volume");
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.set_app_volume(binary_name.clone(), volume);
+                    if let Some(rule) = cfg
+                        .routing_rules
+                        .iter_mut()
+                        .find(|r| r.binary_name.eq_ignore_ascii_case(&binary_name))
+                    {
+                        rule.volume = volume;
+                    }
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                let gm = self.graph.lock().unwrap();
+                let _ = gm.set_app_volume_by_name(&binary_name, volume);
+                IpcResponse::Success
+            }
         }
     }
 }
@@ -378,6 +399,10 @@ async fn main() -> Result<()> {
                                 };
 
                             let _ = gm.route_stream(stream.id, target);
+                            let vol = cfg.get_app_volume(&stream.binary_name);
+                            if vol != 100 {
+                                let _ = gm.set_stream_volume(stream.id, vol);
+                            }
                         }
                     }
                 }

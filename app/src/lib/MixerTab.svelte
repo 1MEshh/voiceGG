@@ -15,6 +15,22 @@
   export let onOpenPresetBrowser: (channel: ChannelId) => void;
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
   export let onSetMicMonitor: ((enabled: boolean, volume: number) => void) | undefined = undefined;
+  export let onSetAppVolume: ((binary: string, volume: number) => void) | undefined = undefined;
+
+  let openAppPopover: string | null = null;
+  function toggleAppPopover(binary: string) {
+    openAppPopover = openAppPopover === binary ? null : binary;
+  }
+
+  function getAppVolume(binary: string): number {
+    if (status.config.app_volumes && status.config.app_volumes[binary] !== undefined) {
+      return status.config.app_volumes[binary];
+    }
+    const rule = status.config.routing_rules?.find(
+      r => r.binary_name.toLowerCase() === binary.toLowerCase()
+    );
+    return rule?.volume ?? 100;
+  }
 
   function getMeterPercent(channel: ChannelId): number {
     const db = meters?.[channel]?.peak_dbfs ?? -100;
@@ -211,17 +227,48 @@
         {#if ch !== 'mic'}
           <div class="apps-box">
             {#each streams as stream}
+              {@const bin = stream.binary_name || stream.app_name}
+              {@const appVol = getAppVolume(bin)}
               <div
                 class="app-chip"
                 role="button"
                 tabindex="0"
                 draggable="true"
-                aria-label={$t('mixer.route_app_aria', { name: stream.binary_name || stream.app_name })}
+                aria-label={$t('mixer.route_app_aria', { name: bin })}
                 on:dragstart={(e) => handleDragStart(e, stream)}
                 on:dragend={handleDragEnd}
               >
                 <span class="chip-color" style="background: {info.defaultColor};"></span>
-                <span class="chip-name">{stream.binary_name || stream.app_name}</span>
+                <span class="chip-name">{bin}</span>
+                <button
+                  type="button"
+                  class="chip-vol-badge tabular-nums"
+                  title={$t('mixer.app_volume_title', { name: bin, vol: appVol })}
+                  on:click|stopPropagation={() => toggleAppPopover(bin)}
+                >
+                  {appVol}%
+                </button>
+                {#if openAppPopover === bin}
+                  <div
+                    class="app-vol-popover"
+                    role="presentation"
+                    on:click|stopPropagation
+                    on:keydown|stopPropagation
+                  >
+                    <div class="popover-header">
+                      <span class="popover-title">{$t('mixer.app_volume')}</span>
+                      <span class="popover-val tabular-nums">{appVol}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="150"
+                      value={appVol}
+                      on:input={(e) => onSetAppVolume?.(bin, Number(e.currentTarget.value))}
+                      class="popover-slider"
+                    />
+                  </div>
+                {/if}
               </div>
             {/each}
             {#if streams.length === 0}
@@ -606,6 +653,7 @@
     font-weight: 600;
     color: var(--color-text-primary);
     cursor: grab;
+    position: relative;
     transition: border-color var(--transition-fast), background-color var(--transition-fast);
   }
   .app-chip:hover {
@@ -619,6 +667,68 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
+  }
+
+  .chip-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip-vol-badge {
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-xs);
+    padding: 1px 4px;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  }
+  .chip-vol-badge:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-bright);
+  }
+
+  .app-vol-popover {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    box-shadow: var(--shadow-depth-md);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+  }
+  .popover-title {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .popover-val {
+    color: var(--color-accent-brand);
+    font-family: var(--font-mono);
+  }
+  .popover-slider {
+    width: 100%;
+    accent-color: var(--color-accent-brand);
+    cursor: pointer;
   }
 
   .chatmix-bar {

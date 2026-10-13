@@ -57,6 +57,9 @@ pub struct VoiceggConfig {
     /// User customized presets persisted across sessions.
     #[serde(default)]
     pub custom_presets: HashMap<String, Preset>,
+    /// Individual application volume overrides (binary_name -> volume percentage 0..150).
+    #[serde(default)]
+    pub app_volumes: HashMap<String, u8>,
 }
 
 impl Default for VoiceggConfig {
@@ -132,11 +135,22 @@ impl Default for VoiceggConfig {
             preferred_input_device: None,
             theme: ThemeConfig::default(),
             custom_presets: HashMap::new(),
+            app_volumes: HashMap::new(),
         }
     }
 }
 
 impl VoiceggConfig {
+    /// Returns the configured volume for a given application binary (defaults to 100).
+    #[must_use]
+    pub fn get_app_volume(&self, binary_name: &str) -> u8 {
+        self.app_volumes.get(binary_name).copied().unwrap_or(100)
+    }
+
+    /// Sets the volume override for a given application binary.
+    pub fn set_app_volume(&mut self, binary_name: String, volume: u8) {
+        self.app_volumes.insert(binary_name, volume);
+    }
     /// Returns the standard config file path ($XDG_CONFIG_HOME/voicegg/config.toml).
     #[must_use]
     pub fn config_path() -> std::path::PathBuf {

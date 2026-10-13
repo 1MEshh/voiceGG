@@ -98,6 +98,7 @@ export interface VoiceggConfig {
   muted: Record<ChannelId, boolean>;
   chatmix: number;
   routing_rules: AppRouteRule[];
+  app_volumes?: Record<string, number>;
   auto_game_detection: boolean;
   preferred_output_device?: string | null;
   preferred_input_device?: string | null;

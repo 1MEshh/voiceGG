@@ -101,6 +101,13 @@ pub enum IpcRequest {
         /// Language code (e.g. "en", "ar").
         language: String,
     },
+    /// Set volume for a specific application stream.
+    SetAppVolume {
+        /// Application binary name.
+        binary_name: String,
+        /// Volume in percentage (0 .. 150).
+        volume: u8,
+    },
 }
 
 /// Responses returned from Daemon to Client.
@@ -231,6 +238,17 @@ mod tests {
     fn test_set_language_serialization() {
         let req = IpcRequest::SetLanguage {
             language: "ar".to_string(),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_set_app_volume_serialization() {
+        let req = IpcRequest::SetAppVolume {
+            binary_name: "discord".to_string(),
+            volume: 85,
         };
         let json = serde_json::to_string(&req).unwrap();
         let decoded: IpcRequest = serde_json::from_str(&json).unwrap();

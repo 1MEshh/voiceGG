@@ -266,6 +266,25 @@ async fn set_language(language: String, state: State<'_, IpcState>) -> Result<()
     }
 }
 
+#[tauri::command]
+async fn set_app_volume(
+    binary_name: String,
+    volume: u8,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetAppVolume {
+            binary_name,
+            volume,
+        })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -465,7 +484,8 @@ pub fn run() {
             set_mic_monitor,
             get_capabilities,
             get_meters,
-            set_language
+            set_language,
+            set_app_volume
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

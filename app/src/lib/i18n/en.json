@@ -50,7 +50,9 @@
     "channel_strip_aria": "{channel} Channel Strip",
     "channel_vol_aria": "{channel} Volume",
     "preset_aria": "Preset: {preset}",
-    "route_app_aria": "Route app {name}"
+    "route_app_aria": "Route app {name}",
+    "app_volume": "App Volume",
+    "app_volume_title": "{name} Volume: {vol}%"
   },
   "mic": {
     "live_monitoring": "Live Voice Monitoring",
