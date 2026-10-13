@@ -23,6 +23,13 @@
     if (type === 'voice') currentPreset.eq.voice_db = val;
     if (type === 'treble') currentPreset.eq.treble_db = val;
     onChangeEq(currentPreset.eq);
+    onApplyPreset(currentPreset);
+  }
+
+  function handleToggleBypass() {
+    currentPreset.eq.enabled = !currentPreset.eq.enabled;
+    onChangeEq(currentPreset.eq);
+    onApplyPreset(currentPreset);
   }
 
   // Filter presets for this channel's category
@@ -80,11 +87,22 @@
           <span>PARAMETRIC EQUALIZER (10-BAND)</span>
         </div>
         <div class="card-actions">
+          <button
+            class="bypass-btn"
+            class:bypassed={!currentPreset.eq.enabled}
+            on:click={handleToggleBypass}
+            title={currentPreset.eq.enabled ? "Bypass Equalizer" : "Enable Equalizer"}
+          >
+            {!currentPreset.eq.enabled ? 'EQ BYPASSED' : 'BYPASS EQ'}
+          </button>
           <label class="toggle-switch">
             <input
               type="checkbox"
               bind:checked={currentPreset.eq.enabled}
-              on:change={() => onChangeEq(currentPreset.eq)}
+              on:change={() => {
+                onChangeEq(currentPreset.eq);
+                onApplyPreset(currentPreset);
+              }}
             />
             <span class="toggle-slider"></span>
           </label>
@@ -95,7 +113,11 @@
       <EqGraph
         eqConfig={currentPreset.eq}
         accentColor={info.defaultColor}
-        onChange={onChangeEq}
+        onChange={(eq) => {
+          currentPreset.eq = eq;
+          onChangeEq(eq);
+          onApplyPreset(currentPreset);
+        }}
       />
 
       <!-- Quick Tone Sliders -->
@@ -373,10 +395,32 @@
     letter-spacing: 0.5px;
   }
 
-  .card-info {
-    font-size: 12px;
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .bypass-btn {
+    padding: 3px 8px;
+    background: #1c2430;
+    border: 1px solid #2d3846;
+    border-radius: 4px;
     color: #94a3b8;
-    margin-bottom: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s ease;
+  }
+  .bypass-btn:hover {
+    color: #f1f5f9;
+    border-color: #3e4c60;
+  }
+  .bypass-btn.bypassed {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #ef4444;
   }
 
   .toggle-switch {

@@ -1,15 +1,26 @@
 <script lang="ts">
-  import type { ChannelId, SystemStatus, ActiveStream } from '../types';
+  import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter } from '../types';
   import { CHANNELS } from './theme';
   import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, MoreVertical } from '@lucide/svelte';
 
   export let status: SystemStatus;
+  export let micMonitorEnabled: boolean = false;
+  export let micMonitorVolume: number = 50;
+  export let meters: Record<ChannelId, ChannelMeter> | undefined = undefined;
   export let onSetVolume: (channel: ChannelId, volume: number) => void;
   export let onSetMute: (channel: ChannelId, muted: boolean) => void;
   export let onSetChatMix: (value: number) => void;
   export let onRouteApp: (binary: string, target: ChannelId) => void;
   export let onOpenPresetBrowser: (channel: ChannelId) => void;
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
+  export let onSetMicMonitor: ((enabled: boolean, volume: number) => void) | undefined = undefined;
+
+  function getMeterPercent(channel: ChannelId): number {
+    const db = meters?.[channel]?.peak_dbfs ?? -100;
+    if (db <= -60) return 0;
+    if (db >= 0) return 100;
+    return ((db + 60) / 60) * 100;
+  }
 
   const channelList: ChannelId[] = ['master', 'game', 'chat', 'media', 'aux', 'mic'];
   const channelIcons: Record<ChannelId, any> = { master: SlidersHorizontal, game: Gamepad2, chat: MessageSquare, media: Music, aux: Headphones, mic: Mic };
@@ -129,14 +140,29 @@
           <div class="fader-track">
             <div class="fader-fill" style="height: {isMuted ? '0%' : vol}%; background-color: {info.defaultColor};"></div>
           </div>
+          <div class="meter-track" title={`${meters?.[ch]?.peak_dbfs !== undefined ? meters[ch].peak_dbfs.toFixed(1) + ' dBFS' : '-∞ dBFS'}`}>
+            <div class="meter-fill" style="height: {getMeterPercent(ch)}%;"></div>
+          </div>
           <input type="range" class="vertical-slider" min="0" max="100" value={vol} on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))} />
         </div>
 
         <div class="vol-text">{vol}%</div>
 
-        <button class="mute-btn" class:muted={isMuted} on:click={() => onSetMute(ch, !isMuted)}>
-          {#if isMuted} <VolumeX size={14} /> {:else} <Volume2 size={14} /> {/if}
-        </button>
+        <div class="strip-btn-row">
+          <button class="mute-btn" class:muted={isMuted} on:click={() => onSetMute(ch, !isMuted)} title={isMuted ? "Unmute" : "Mute"}>
+            {#if isMuted} <VolumeX size={14} /> {:else} <Volume2 size={14} /> {/if}
+          </button>
+          {#if ch === 'mic'}
+            <button
+              class="strip-monitor-btn"
+              class:active={micMonitorEnabled}
+              on:click={() => onSetMicMonitor?.(!micMonitorEnabled, micMonitorVolume)}
+              title={micMonitorEnabled ? "Mic Monitor: Active" : "Mic Monitor: Inactive"}
+            >
+              <Headphones size={14} />
+            </button>
+          {/if}
+        </div>
 
         {#if ch !== 'mic'}
           <div class="apps-box">
@@ -269,10 +295,17 @@
     border-color: var(--color-border-bright, #3B4660);
   }
   
-  .fader-container { position: relative; height: 180px; width: 28px; display: flex; justify-content: center; align-items: center; margin-bottom: 12px; }
+  .fader-container {
+    position: relative;
+    height: 180px;
+    width: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
   .fader-track {
-    position: absolute;
-    bottom: 0;
     width: 10px;
     height: 100%;
     background: var(--color-surface-3, #1D2333);
@@ -286,6 +319,24 @@
     width: 100%;
     transition: height 0.08s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 -2px 10px var(--ch-color, #10B981);
+  }
+
+  .meter-track {
+    width: 5px;
+    height: 100%;
+    background: var(--color-surface-3, #1D2333);
+    border-radius: 3px;
+    border: 1px solid var(--color-border-default, #262E40);
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+  }
+  .meter-fill {
+    width: 100%;
+    background: linear-gradient(180deg, #EF4444 0%, #EAB308 35%, #10B981 100%);
+    transition: height 0.06s linear;
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
   }
   
   .vertical-slider {
@@ -327,6 +378,14 @@
     margin-bottom: 8px;
     letter-spacing: -0.5px;
   }
+
+  .strip-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
   
   .mute-btn {
     width: 36px;
@@ -339,7 +398,6 @@
     align-items: center;
     border-radius: var(--radius-sm, 4px);
     cursor: pointer;
-    margin-bottom: 16px;
     transition: all 0.15s ease;
   }
   .mute-btn:hover {
@@ -353,6 +411,32 @@
     border-color: #EF4444;
     color: #EF4444;
     box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+  }
+
+  .strip-monitor-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--color-surface-3, #1D2333);
+    border: 1px solid var(--color-border-default, #262E40);
+    color: var(--color-text-secondary, #94A3B8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .strip-monitor-btn:hover {
+    background: var(--color-surface-hover, #252D40);
+    color: #FFF;
+    border-color: var(--color-border-bright, #3B4660);
+    transform: translateY(-1px);
+  }
+  .strip-monitor-btn.active {
+    background: rgba(249, 115, 22, 0.18);
+    border-color: #F97316;
+    color: #F97316;
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.35);
   }
   
   .apps-box {

@@ -1,13 +1,14 @@
 //! Tauri 2 backend bridge connecting the GUI to voicegg-daemon via Unix socket IPC.
 
+use std::collections::HashMap;
 use std::process::Command;
 use std::str::FromStr;
 use std::time::Duration;
 use tauri::State;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use voicegg_core::{ChannelId, Preset};
-use voicegg_ipc::{IpcClient, IpcRequest, IpcResponse, SystemStatus};
+use voicegg_core::{ChannelId, PluginCapabilities, Preset};
+use voicegg_ipc::{ChannelMeter, IpcClient, IpcRequest, IpcResponse, SystemStatus};
 use voicegg_pw::AudioDevice;
 
 struct IpcState {
@@ -197,6 +198,64 @@ async fn panic_reset(state: State<'_, IpcState>) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+async fn set_mic_monitor(
+    enabled: bool,
+    volume: u8,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetMicMonitor { enabled, volume })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn get_capabilities(
+    state: State<'_, IpcState>,
+) -> Result<PluginCapabilities, String> {
+    match state.send_request(IpcRequest::GetCapabilities).await? {
+        IpcResponse::Capabilities(caps) => Ok(caps),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn get_meters(
+    state: State<'_, IpcState>,
+) -> Result<HashMap<ChannelId, ChannelMeter>, String> {
+    match state.send_request(IpcRequest::GetMeters).await? {
+        IpcResponse::Meters(meters) => Ok(meters),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn save_preset(
+    channel: String,
+    preset: Preset,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::SetPreset {
+            channel: ch,
+            preset,
+        })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -217,6 +276,7 @@ pub fn run() {
             let sep1 = PredefinedMenuItem::separator(app)?;
             let mute_master_i = MenuItem::with_id(app, "mute_master", "Toggle Mute Master", true, None::<&str>)?;
             let mute_mic_i = MenuItem::with_id(app, "mute_mic", "Toggle Mute Microphone", true, None::<&str>)?;
+            let monitor_mic_i = MenuItem::with_id(app, "monitor_mic", "Toggle Voice Monitor", true, None::<&str>)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
             let panic_i = MenuItem::with_id(app, "panic", "Emergency Reset Audio", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit VoiceGG", true, None::<&str>)?;
@@ -229,6 +289,7 @@ pub fn run() {
                     &sep1,
                     &mute_master_i,
                     &mute_mic_i,
+                    &monitor_mic_i,
                     &sep2,
                     &panic_i,
                     &quit_i,
@@ -320,6 +381,24 @@ pub fn run() {
                             }
                         });
                     }
+                    "monitor_mic" => {
+                        let app_handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let state = app_handle.state::<IpcState>();
+                            if let Ok(voicegg_ipc::IpcResponse::Status(status)) =
+                                state.send_request(voicegg_ipc::IpcRequest::GetStatus).await
+                            {
+                                let current = status.mic_monitor_enabled;
+                                let vol = status.mic_monitor_volume;
+                                let _ = state
+                                    .send_request(voicegg_ipc::IpcRequest::SetMicMonitor {
+                                        enabled: !current,
+                                        volume: vol,
+                                    })
+                                    .await;
+                            }
+                        });
+                    }
                     "panic" => {
                         let app_handle = app.clone();
                         tauri::async_runtime::spawn(async move {
@@ -340,17 +419,20 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-
             get_status,
             set_volume,
             set_mute,
             set_chatmix,
             set_preset,
+            save_preset,
             route_app,
             get_devices,
             set_audio_device,
             get_builtin_presets,
-            panic_reset
+            panic_reset,
+            set_mic_monitor,
+            get_capabilities,
+            get_meters
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

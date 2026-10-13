@@ -133,7 +133,7 @@
     }
 
     // Frequency grid vertical lines
-    const freqs = [50, 100, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    const freqs = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     ctx.textAlign = 'center';
     for (const f of freqs) {
       const x = freqToX(f, width);
@@ -264,10 +264,49 @@
       const by = gainToY(eqConfig.bands[i].gain_db, canvas.clientHeight);
       if (Math.hypot(x - bx, y - by) <= 14) {
         eqConfig.bands[i].gain_db = 0.0;
+        selectedBandIndex = i;
         draw();
         onChange(eqConfig);
         break;
       }
+    }
+  }
+
+  function handleWheel(e: WheelEvent) {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Check if mouse is over any band node or currently selected band
+    let targetIndex = -1;
+    for (let i = 0; i < eqConfig.bands.length; i++) {
+      const bx = freqToX(eqConfig.bands[i].freq_hz, canvas.clientWidth);
+      const by = gainToY(eqConfig.bands[i].gain_db, canvas.clientHeight);
+      if (Math.hypot(x - bx, y - by) <= 16) {
+        targetIndex = i;
+        break;
+      }
+    }
+
+    if (targetIndex === -1 && selectedBandIndex !== null) {
+      const bx = freqToX(eqConfig.bands[selectedBandIndex].freq_hz, canvas.clientWidth);
+      const by = gainToY(eqConfig.bands[selectedBandIndex].gain_db, canvas.clientHeight);
+      if (Math.hypot(x - bx, y - by) <= 24) {
+        targetIndex = selectedBandIndex;
+      }
+    }
+
+    if (targetIndex !== -1) {
+      e.preventDefault();
+      selectedBandIndex = targetIndex;
+      // Wheel up (e.deltaY < 0) increases Q (narrower bandwidth), wheel down decreases Q (0.2 to 10.0)
+      const delta = e.deltaY < 0 ? 0.2 : -0.2;
+      const currentQ = eqConfig.bands[targetIndex].q ?? 1.0;
+      const newQ = Math.round(Math.max(0.2, Math.min(10.0, currentQ + delta)) * 10) / 10;
+      eqConfig.bands[targetIndex].q = newQ;
+      draw();
+      onChange(eqConfig);
     }
   }
 
@@ -290,6 +329,7 @@
     on:mouseup={handleMouseUp}
     on:mouseleave={handleMouseUp}
     on:dblclick={handleDoubleClick}
+    on:wheel={handleWheel}
   ></canvas>
 
   {#if selectedBandIndex !== null}

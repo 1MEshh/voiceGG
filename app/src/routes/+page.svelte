@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import type { ChannelId, SystemStatus, Preset } from '../types';
+  import type { ChannelId, SystemStatus, Preset, ChannelMeter } from '../types';
   import TopNav from '../lib/TopNav.svelte';
   import MixerTab from '../lib/MixerTab.svelte';
   import ChannelTab from '../lib/ChannelTab.svelte';
@@ -49,6 +49,23 @@
     devices: [],
     streams: [],
     active_game: null,
+    capabilities: {
+      rnnoise: false,
+      gate: false,
+      compressor: false,
+      biquad_eq: true,
+    },
+    mic_monitor_enabled: false,
+    mic_monitor_volume: 50,
+  };
+
+  let meters: Record<ChannelId, ChannelMeter> = {
+    master: { peak_dbfs: -100, rms_dbfs: -100 },
+    game: { peak_dbfs: -100, rms_dbfs: -100 },
+    chat: { peak_dbfs: -100, rms_dbfs: -100 },
+    media: { peak_dbfs: -100, rms_dbfs: -100 },
+    aux: { peak_dbfs: -100, rms_dbfs: -100 },
+    mic: { peak_dbfs: -100, rms_dbfs: -100 },
   };
 
   let allPresets: Preset[] = [];
@@ -59,6 +76,17 @@
       status = res;
     } catch (e) {
       console.warn('Could not fetch status from daemon:', e);
+    }
+  }
+
+  async function fetchMeters() {
+    try {
+      const res = await invoke<Record<ChannelId, ChannelMeter>>('get_meters');
+      if (res) {
+        meters = res;
+      }
+    } catch {
+      // Ignore background meter polling errors
     }
   }
 
@@ -118,6 +146,24 @@
     isPresetBrowserOpen = false;
   }
 
+  async function handleSavePreset(channel: ChannelId, preset: Preset) {
+    try {
+      await invoke('save_preset', { channel, preset });
+    } catch (e) {
+      console.error('Failed to save preset:', e);
+    }
+  }
+
+  async function handleSetMicMonitor(enabled: boolean, volume: number) {
+    status.mic_monitor_enabled = enabled;
+    status.mic_monitor_volume = volume;
+    try {
+      await invoke('set_mic_monitor', { enabled, volume });
+    } catch (e) {
+      console.error('Failed to set mic monitor:', e);
+    }
+  }
+
   async function handlePanicReset() {
     if (confirm('Are you sure you want to reset all VoiceGG audio routing to system defaults?')) {
       try {
@@ -147,7 +193,11 @@
     fetchPresets();
     fetchStatus();
     const interval = setInterval(fetchStatus, 1500);
-    return () => clearInterval(interval);
+    const meterInterval = setInterval(fetchMeters, 60);
+    return () => {
+      clearInterval(interval);
+      clearInterval(meterInterval);
+    };
   });
 
   // Active preset object for current tab
@@ -174,12 +224,16 @@
     {#if activeTab === 'mixer'}
       <MixerTab
         {status}
+        micMonitorEnabled={status.mic_monitor_enabled}
+        micMonitorVolume={status.mic_monitor_volume}
+        {meters}
         onSetVolume={handleSetVolume}
         onSetMute={handleSetMute}
         onSetChatMix={handleSetChatMix}
         onRouteApp={handleRouteApp}
         onOpenPresetBrowser={openPresetBrowser}
         onSetDevice={handleSetDevice}
+        onSetMicMonitor={handleSetMicMonitor}
       />
     {:else if activeTab === 'mic'}
       {#if currentPresetObj}
@@ -188,9 +242,14 @@
           {allPresets}
           devices={status.devices}
           preferredInputDevice={status.config.preferred_input_device}
-          onChangePreset={(p) => handleApplyPreset(p)}
+          micMonitorEnabled={status.mic_monitor_enabled}
+          micMonitorVolume={status.mic_monitor_volume}
+          capabilities={status.capabilities}
+          meter={meters['mic']}
+          onChangePreset={(p) => handleSavePreset('mic', p)}
           onOpenBrowser={() => openPresetBrowser('mic')}
           onSetDevice={handleSetDevice}
+          onSetMicMonitor={handleSetMicMonitor}
         />
       {/if}
     {:else}
@@ -199,10 +258,11 @@
           channel={activeTab as ChannelId}
           currentPreset={currentPresetObj}
           {allPresets}
-          onApplyPreset={handleApplyPreset}
+          onApplyPreset={(p) => handleSavePreset(activeTab as ChannelId, p)}
           onOpenBrowser={() => openPresetBrowser(activeTab as ChannelId)}
           onChangeEq={(eq) => {
             currentPresetObj.eq = eq;
+            handleSavePreset(activeTab as ChannelId, currentPresetObj);
           }}
         />
       {/if}

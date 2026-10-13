@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import type { Preset, AudioDevice } from '../types';
+  import type { Preset, AudioDevice, PluginCapabilities, ChannelMeter } from '../types';
   import EqGraph from './EqGraph.svelte';
-  import { Waves, Shield, Sliders, Volume2, Mic, Search, Star } from '@lucide/svelte';
+  import { Waves, Shield, Sliders, Volume2, Mic, Search, Star, Headphones, AlertTriangle } from '@lucide/svelte';
 
   export let currentPreset: Preset;
   export let allPresets: Preset[] = [];
@@ -11,39 +10,34 @@
   export let onChangePreset: (p: Preset) => void;
   export let onOpenBrowser: () => void = () => {};
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
+  export let micMonitorEnabled: boolean = false;
+  export let micMonitorVolume: number = 50;
+  export let capabilities: PluginCapabilities | undefined = undefined;
+  export let meter: ChannelMeter | undefined = undefined;
+  export let onSetMicMonitor: (enabled: boolean, volume: number) => void;
 
-  let isTesting = false;
-  let testCountdown = 0;
-  let testTimer: any = null;
+  $: isRnnoiseAvailable = capabilities ? capabilities.rnnoise : true;
 
-  function toggleTest() {
-    if (isTesting) {
-      isTesting = false;
-      if (testTimer) clearInterval(testTimer);
-      testCountdown = 0;
-    } else {
-      isTesting = true;
-      testCountdown = 5;
-      testTimer = setInterval(() => {
-        testCountdown -= 1;
-        if (testCountdown <= 0) {
-          isTesting = false;
-          if (testTimer) clearInterval(testTimer);
-        }
-      }, 1000);
+  $: noiseAmount = currentPreset.noise_canceller?.amount ?? 0;
+  $: gateThreshold = currentPreset.noise_gate?.threshold_db ?? -40;
+  $: gateAttack = currentPreset.noise_gate?.attack_ms ?? 10;
+  $: gateRelease = currentPreset.noise_gate?.release_ms ?? 100;
+
+  $: compThreshold = currentPreset.compressor?.threshold_db ?? -18;
+  $: compRatio = currentPreset.compressor?.ratio ?? 3;
+  $: compMakeup = currentPreset.compressor?.makeup_gain_db ?? 2;
+
+  // Real Gain Reduction calculation
+  $: compReduction = (() => {
+    if (!meter || !(currentPreset.compressor?.enabled ?? true)) return '0.0';
+    if (meter.peak_dbfs > compThreshold && compRatio > 1) {
+      const red = (meter.peak_dbfs - compThreshold) * (1 - 1 / compRatio);
+      return red > 0 ? red.toFixed(1) : '0.0';
     }
-  }
-
-  onDestroy(() => {
-    if (testTimer) clearInterval(testTimer);
-  });
-
-  let noiseAmount = currentPreset.noise_canceller?.amount ?? 65;
-  let gateThreshold = currentPreset.noise_gate?.threshold_db ?? -40;
-  let compThreshold = currentPreset.compressor?.threshold_db ?? -18;
+    return '0.0';
+  })();
 
   function handleNoiseChange(val: number) {
-    noiseAmount = val;
     if (!currentPreset.noise_canceller) {
       currentPreset.noise_canceller = { enabled: val > 0, amount: val, vad_threshold: 0.5 };
     } else {
@@ -53,20 +47,58 @@
     onChangePreset(currentPreset);
   }
 
-  function handleGateChange(val: number) {
-    gateThreshold = val;
-    if (currentPreset.noise_gate) {
+  function handleGateThresholdChange(val: number) {
+    if (!currentPreset.noise_gate) {
+      currentPreset.noise_gate = { enabled: true, threshold_db: val, attack_ms: 10, hold_ms: 50, release_ms: 100 };
+    } else {
       currentPreset.noise_gate.threshold_db = val;
-      onChangePreset(currentPreset);
     }
+    onChangePreset(currentPreset);
   }
 
-  function handleCompChange(val: number) {
-    compThreshold = val;
-    if (currentPreset.compressor) {
-      currentPreset.compressor.threshold_db = val;
-      onChangePreset(currentPreset);
+  function handleGateAttackChange(val: number) {
+    if (!currentPreset.noise_gate) {
+      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: val, hold_ms: 50, release_ms: 100 };
+    } else {
+      currentPreset.noise_gate.attack_ms = val;
     }
+    onChangePreset(currentPreset);
+  }
+
+  function handleGateReleaseChange(val: number) {
+    if (!currentPreset.noise_gate) {
+      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: val };
+    } else {
+      currentPreset.noise_gate.release_ms = val;
+    }
+    onChangePreset(currentPreset);
+  }
+
+  function handleCompThresholdChange(val: number) {
+    if (!currentPreset.compressor) {
+      currentPreset.compressor = { enabled: true, threshold_db: val, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+    } else {
+      currentPreset.compressor.threshold_db = val;
+    }
+    onChangePreset(currentPreset);
+  }
+
+  function handleCompRatioChange(val: number) {
+    if (!currentPreset.compressor) {
+      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: val, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+    } else {
+      currentPreset.compressor.ratio = val;
+    }
+    onChangePreset(currentPreset);
+  }
+
+  function handleCompMakeupChange(val: number) {
+    if (!currentPreset.compressor) {
+      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: val };
+    } else {
+      currentPreset.compressor.makeup_gain_db = val;
+    }
+    onChangePreset(currentPreset);
   }
 
   function handleToneChange(type: 'bass' | 'voice' | 'treble', val: number) {
@@ -110,16 +142,32 @@
         {/each}
       </select>
 
-      <!-- Mic Test Button -->
-      <button class="test-btn" class:active={isTesting} on:click={toggleTest}>
-        {#if isTesting}
-          <span class="pulse-dot"></span>
-          <span>RECORDING ({testCountdown}s)...</span>
-        {:else}
-          <Mic size={13} />
-          <span>TEST MIC</span>
+      <!-- Live Mic Monitor Toggle -->
+      <div class="monitor-wrapper" class:active={micMonitorEnabled}>
+        <button
+          class="monitor-btn"
+          class:active={micMonitorEnabled}
+          on:click={() => onSetMicMonitor(!micMonitorEnabled, micMonitorVolume)}
+          title={micMonitorEnabled ? "Mute live microphone loopback" : "Listen to microphone in real time"}
+        >
+          <Headphones size={13} />
+          <span>{micMonitorEnabled ? 'LIVE MONITORING' : 'MONITOR MIC'}</span>
+        </button>
+        {#if micMonitorEnabled}
+          <div class="monitor-vol-box">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={micMonitorVolume}
+              on:input={(e) => onSetMicMonitor(true, Number(e.currentTarget.value))}
+              class="monitor-slider"
+              title={`Monitor Volume: ${micMonitorVolume}%`}
+            />
+            <span class="monitor-vol-text">{micMonitorVolume}%</span>
+          </div>
         {/if}
-      </button>
+      </div>
 
       <button class="browse-btn" on:click={onOpenBrowser}>
         <Search size={14} />
@@ -147,6 +195,14 @@
 
   <!-- Main Content Grid -->
   <div class="cards-grid">
+    <!-- Capabilities Banner (if rnnoise missing) -->
+    {#if capabilities && !capabilities.rnnoise}
+      <div class="caps-banner">
+        <AlertTriangle size={15} color="#F59E0B" />
+        <span>Noise Remover is unavailable: install librnnoise_ladspa (<code class="caps-pkg">noise-suppression-for-voice</code> from AUR/package manager).</span>
+      </div>
+    {/if}
+
     <!-- Equalizer Card -->
     <div class="card eq-card">
       <div class="card-header">
@@ -222,27 +278,38 @@
 
     <!-- Bottom DSP Cards Grid -->
     <div class="dsp-grid">
-      <!-- ClearCast RNNoise -->
-      <div class="card dsp-card">
+      <!-- Noise Remover (RNNoise) -->
+      <div class="card dsp-card" class:is-disabled={!isRnnoiseAvailable}>
         <div class="card-header">
           <div class="card-title">
             <Waves size={15} color="#F97316" />
-            <span>CLEARCAST AI NOISE</span>
+            <span>NOISE REMOVER</span>
           </div>
-          <span class="dsp-badge" class:active={noiseAmount > 0}>{noiseAmount > 0 ? `${noiseAmount}% WET` : 'BYPASS'}</span>
+          <span class="dsp-badge" class:active={isRnnoiseAvailable && noiseAmount > 0}>
+            {#if !isRnnoiseAvailable}
+              UNAVAILABLE
+            {:else if noiseAmount > 0}
+              {noiseAmount}% WET
+            {:else}
+              BYPASS
+            {/if}
+          </span>
         </div>
         <p class="dsp-desc">Deep neural network background isolation for loud mechanical keyboards and fans.</p>
         <div class="dsp-presets-row">
-          <button class="dsp-pill" class:active={noiseAmount === 40} on:click={() => handleNoiseChange(40)}>LOW (40%)</button>
-          <button class="dsp-pill" class:active={noiseAmount === 65} on:click={() => handleNoiseChange(65)}>BALANCED (65%)</button>
-          <button class="dsp-pill" class:active={noiseAmount === 90} on:click={() => handleNoiseChange(90)}>MAX (90%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 0} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(0)}>OFF (0%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 40} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(40)}>LOW (40%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 65} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(65)}>BALANCED (65%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 90} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(90)}>MAX (90%)</button>
         </div>
         <div class="dsp-control-row">
+          <span class="dsp-sublabel">Amount</span>
           <input
             type="range"
             min="0"
             max="100"
             value={noiseAmount}
+            disabled={!isRnnoiseAvailable}
             on:input={(e) => handleNoiseChange(Number(e.currentTarget.value))}
             class="dsp-slider"
           />
@@ -262,10 +329,12 @@
               type="checkbox"
               checked={currentPreset.noise_gate?.enabled ?? true}
               on:change={(e) => {
-                if (currentPreset.noise_gate) {
+                if (!currentPreset.noise_gate) {
+                  currentPreset.noise_gate = { enabled: e.currentTarget.checked, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: 100 };
+                } else {
                   currentPreset.noise_gate.enabled = e.currentTarget.checked;
-                  onChangePreset(currentPreset);
                 }
+                onChangePreset(currentPreset);
               }}
             />
             <span class="toggle-slider"></span>
@@ -273,38 +342,70 @@
         </div>
         <p class="dsp-desc">Silences physical microphone when your voice level drops below open threshold.</p>
         <div class="dsp-meter-row">
-          <span class="gate-status-pill open">● GATE OPEN</span>
+          {#if meter && meter.peak_dbfs > gateThreshold && (currentPreset.noise_gate?.enabled ?? true)}
+            <span class="gate-status-pill open">● GATE OPEN</span>
+          {:else}
+            <span class="gate-status-pill closed">○ GATE CLOSED</span>
+          {/if}
         </div>
-        <div class="dsp-control-row">
-          <span class="dsp-sublabel">Threshold</span>
-          <input
-            type="range"
-            min="-60"
-            max="-10"
-            value={gateThreshold}
-            on:input={(e) => handleGateChange(Number(e.currentTarget.value))}
-            class="dsp-slider"
-          />
-          <span class="dsp-val">{gateThreshold} dBFS</span>
+        <div class="dsp-controls-list">
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Threshold</span>
+            <input
+              type="range"
+              min="-60"
+              max="-10"
+              value={gateThreshold}
+              on:input={(e) => handleGateThresholdChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{gateThreshold} dBFS</span>
+          </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Attack</span>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={gateAttack}
+              on:input={(e) => handleGateAttackChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{gateAttack} ms</span>
+          </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Release</span>
+            <input
+              type="range"
+              min="10"
+              max="1000"
+              value={gateRelease}
+              on:input={(e) => handleGateReleaseChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{gateRelease} ms</span>
+          </div>
         </div>
       </div>
 
-      <!-- Dynamic Compressor -->
+      <!-- Compressor -->
       <div class="card dsp-card">
         <div class="card-header">
           <div class="card-title">
             <Volume2 size={15} color="#F97316" />
-            <span>SMART VOICE COMPRESSOR</span>
+            <span>COMPRESSOR</span>
           </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
               checked={currentPreset.compressor?.enabled ?? true}
               on:change={(e) => {
-                if (currentPreset.compressor) {
+                if (!currentPreset.compressor) {
+                  currentPreset.compressor = { enabled: e.currentTarget.checked, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+                } else {
                   currentPreset.compressor.enabled = e.currentTarget.checked;
-                  onChangePreset(currentPreset);
                 }
+                onChangePreset(currentPreset);
               }}
             />
             <span class="toggle-slider"></span>
@@ -312,19 +413,49 @@
         </div>
         <p class="dsp-desc">Even out sudden shouting and quiet whispers into broadcast-consistent levels.</p>
         <div class="dsp-meter-row">
-          <span class="compressor-gr-pill">-2.4 dB GAIN REDUCTION</span>
+          <span class="compressor-gr-pill" class:active={parseFloat(compReduction) > 0}>
+            {parseFloat(compReduction) > 0 ? `-${compReduction} dB GAIN REDUCTION` : '0.0 dB GAIN REDUCTION'}
+          </span>
         </div>
-        <div class="dsp-control-row">
-          <span class="dsp-sublabel">Threshold</span>
-          <input
-            type="range"
-            min="-40"
-            max="0"
-            value={compThreshold}
-            on:input={(e) => handleCompChange(Number(e.currentTarget.value))}
-            class="dsp-slider"
-          />
-          <span class="dsp-val">{compThreshold} dBFS</span>
+        <div class="dsp-controls-list">
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Threshold</span>
+            <input
+              type="range"
+              min="-40"
+              max="0"
+              value={compThreshold}
+              on:input={(e) => handleCompThresholdChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{compThreshold} dBFS</span>
+          </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Ratio</span>
+            <input
+              type="range"
+              min="1"
+              max="20"
+              step="0.5"
+              value={compRatio}
+              on:input={(e) => handleCompRatioChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{compRatio.toFixed(1)}:1</span>
+          </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">Makeup</span>
+            <input
+              type="range"
+              min="0"
+              max="24"
+              step="0.5"
+              value={compMakeup}
+              on:input={(e) => handleCompMakeupChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val">{compMakeup > 0 ? '+' : ''}{compMakeup.toFixed(1)} dB</span>
+          </div>
         </div>
       </div>
     </div>
@@ -428,42 +559,78 @@
     border-color: var(--color-border-bright, #3B4660);
   }
 
-  .test-btn {
+  .monitor-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--color-surface-3, #1D2333);
+    border: 1px solid var(--color-border-default, #262E40);
+    border-radius: var(--radius-sm, 4px);
+    transition: all 0.15s ease;
+  }
+  .monitor-wrapper:hover {
+    border-color: var(--color-border-bright, #3B4660);
+  }
+  .monitor-wrapper.active {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.6);
+    box-shadow: 0 0 10px rgba(249, 115, 22, 0.25);
+  }
+
+  .monitor-btn {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 7px 12px;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-default, #262E40);
-    border-radius: var(--radius-sm, 4px);
-    color: var(--color-text-primary, #F8FAFC);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary, #94A3B8);
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: color 0.15s ease;
   }
-  .test-btn:hover {
-    background: var(--color-surface-hover, #252D40);
-    border-color: var(--color-border-bright, #3B4660);
+  .monitor-btn:hover {
+    color: var(--color-text-primary, #F8FAFC);
   }
-  .test-btn.active {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: #EF4444;
-    color: #EF4444;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+  .monitor-btn.active {
+    color: #F97316;
   }
 
-  .pulse-dot {
-    width: 8px;
-    height: 8px;
-    background: #EF4444;
+  .monitor-vol-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 10px;
+    padding-left: 2px;
+    border-left: 1px solid rgba(249, 115, 22, 0.3);
+  }
+
+  .monitor-slider {
+    appearance: none;
+    width: 60px;
+    height: 4px;
+    background: var(--color-surface-1, #11151F);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .monitor-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    animation: pulse 1s infinite alternate;
+    background: #F97316;
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(249, 115, 22, 0.6);
   }
 
-  @keyframes pulse {
-    0% { transform: scale(0.8); opacity: 0.6; }
-    100% { transform: scale(1.2); opacity: 1; }
+  .monitor-vol-text {
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    font-weight: 700;
+    color: #F97316;
+    width: 28px;
+    text-align: right;
   }
 
   .browse-btn {
@@ -759,6 +926,41 @@
     color: #F97316;
   }
 
+  .caps-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: var(--radius-md, 6px);
+    color: #FDE68A;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .caps-pkg {
+    font-family: var(--font-mono, monospace);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #FCD34D;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .dsp-card.is-disabled {
+    opacity: 0.55;
+  }
+  .dsp-card.is-disabled .dsp-pill,
+  .dsp-card.is-disabled .dsp-slider {
+    cursor: not-allowed;
+  }
+
+  .dsp-controls-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .dsp-meter-row {
     display: flex;
     align-items: center;
@@ -769,19 +971,36 @@
     font-weight: 800;
     padding: 4px 8px;
     border-radius: var(--radius-sm, 4px);
+    letter-spacing: 0.5px;
+    transition: all 0.15s ease;
+  }
+  .gate-status-pill.open {
     background: rgba(16, 185, 129, 0.15);
     color: #10B981;
     border: 1px solid rgba(16, 185, 129, 0.4);
-    letter-spacing: 0.5px;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
   }
+  .gate-status-pill.closed {
+    background: rgba(100, 116, 139, 0.15);
+    color: #64748B;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+  }
+
   .compressor-gr-pill {
     font-size: 10px;
     font-weight: 800;
     padding: 4px 8px;
     border-radius: var(--radius-sm, 4px);
-    background: rgba(14, 165, 233, 0.15);
-    color: #0EA5E9;
-    border: 1px solid rgba(14, 165, 233, 0.4);
+    background: rgba(100, 116, 139, 0.12);
+    color: #64748B;
+    border: 1px solid rgba(100, 116, 139, 0.3);
     font-family: var(--font-mono, monospace);
+    transition: all 0.15s ease;
+  }
+  .compressor-gr-pill.active {
+    background: rgba(14, 165, 233, 0.18);
+    color: #38BDF8;
+    border: 1px solid rgba(14, 165, 233, 0.5);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.25);
   }
 </style>

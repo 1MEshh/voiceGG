@@ -102,9 +102,24 @@ export interface VoiceggConfig {
   preferred_input_device?: string | null;
 }
 
+export interface PluginCapabilities {
+  rnnoise: boolean;
+  gate: boolean;
+  compressor: boolean;
+  biquad_eq: boolean;
+}
+
+export interface ChannelMeter {
+  peak_dbfs: number;
+  rms_dbfs: number;
+}
+
 export interface SystemStatus {
   config: VoiceggConfig;
   devices: AudioDevice[];
   streams: ActiveStream[];
   active_game: string | null;
+  capabilities: PluginCapabilities;
+  mic_monitor_enabled: boolean;
+  mic_monitor_volume: number;
 }
