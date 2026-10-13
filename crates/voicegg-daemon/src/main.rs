@@ -272,6 +272,48 @@ impl RequestHandler for DaemonHandler {
                 let _ = gm.set_app_volume_by_name(&binary_name, volume);
                 IpcResponse::Success
             }
+            IpcRequest::CyclePreset { channel } => {
+                use voicegg_core::{Preset, PresetCategory};
+                let all_presets: Vec<Preset> = Preset::builtin_presets()
+                    .into_iter()
+                    .filter(|p| match channel {
+                        ChannelId::Game => p.category == PresetCategory::Game,
+                        ChannelId::Chat => p.category == PresetCategory::Chat,
+                        ChannelId::Media => p.category == PresetCategory::Media,
+                        ChannelId::Mic => p.category == PresetCategory::Mic,
+                        _ => true,
+                    })
+                    .collect();
+
+                if all_presets.is_empty() {
+                    IpcResponse::Error("No presets available for channel".to_string())
+                } else {
+                    let next_preset = {
+                        let cfg = self.config.read().unwrap();
+                        let current_id =
+                            cfg.active_presets.get(&channel).cloned().unwrap_or_default();
+                        let current_idx = all_presets
+                            .iter()
+                            .position(|p| p.id.eq_ignore_ascii_case(&current_id))
+                            .unwrap_or(0);
+                        let next_idx = (current_idx + 1) % all_presets.len();
+                        all_presets[next_idx].clone()
+                    };
+
+                    tracing::info!(
+                        channel = %channel,
+                        preset = %next_preset.id,
+                        "Cycled preset for channel"
+                    );
+
+                    {
+                        let mut cfg = self.config.write().unwrap();
+                        cfg.active_presets.insert(channel, next_preset.id.clone());
+                    }
+                    self.dirty.store(true, Ordering::Relaxed);
+                    IpcResponse::Success
+                }
+            }
         }
     }
 }

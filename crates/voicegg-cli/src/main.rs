@@ -72,6 +72,19 @@ enum CtlAction {
         #[arg(long, default_value_t = 50)]
         volume: u8,
     },
+    /// Apply an equalizer preset to a channel.
+    Preset {
+        /// Channel to adjust (game, chat, media, mic).
+        channel: ChannelId,
+        /// Preset identifier (e.g. game_cs2, mic_broadcast).
+        preset_id: String,
+    },
+    /// Cycle to the next preset for a channel.
+    CyclePreset {
+        /// Channel to cycle (game, chat, media, mic).
+        #[arg(default_value = "game")]
+        channel: ChannelId,
+    },
 }
 
 #[tokio::main]
@@ -232,6 +245,28 @@ async fn main() -> Result<()> {
                             "Mic Monitoring is now {}",
                             if target { "ON" } else { "OFF" }
                         );
+                    }
+                    IpcResponse::Error(e) => eprintln!("Error: {e}"),
+                    _ => (),
+                }
+            }
+            CtlAction::Preset { channel, preset_id } => {
+                let preset = match voicegg_core::Preset::get_preset_by_id(&preset_id) {
+                    Some(p) => p,
+                    None => bail!("Preset '{}' not found", preset_id),
+                };
+                match client.request(IpcRequest::SetPreset { channel, preset }).await? {
+                    IpcResponse::Success => {
+                        println!("Preset for {} set to '{}'", channel, preset_id);
+                    }
+                    IpcResponse::Error(e) => eprintln!("Error: {e}"),
+                    _ => (),
+                }
+            }
+            CtlAction::CyclePreset { channel } => {
+                match client.request(IpcRequest::CyclePreset { channel }).await? {
+                    IpcResponse::Success => {
+                        println!("Cycled preset for {}", channel);
                     }
                     IpcResponse::Error(e) => eprintln!("Error: {e}"),
                     _ => (),

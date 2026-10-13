@@ -5,7 +5,7 @@
     "return-type": "json",
     "interval": 2,
     "on-click": "voicegg-gui",
-    "on-click-middle": "voicegg ctl mute master toggle",
+    "on-click-middle": "voicegg ctl cycle-preset game",
     "on-click-right": "voicegg ctl mute mic toggle",
     "tooltip": true
   }

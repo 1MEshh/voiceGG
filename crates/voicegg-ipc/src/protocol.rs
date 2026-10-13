@@ -108,6 +108,11 @@ pub enum IpcRequest {
         /// Volume in percentage (0 .. 150).
         volume: u8,
     },
+    /// Cycle to the next available preset for a channel.
+    CyclePreset {
+        /// Channel to cycle.
+        channel: ChannelId,
+    },
 }
 
 /// Responses returned from Daemon to Client.
@@ -249,6 +254,16 @@ mod tests {
         let req = IpcRequest::SetAppVolume {
             binary_name: "discord".to_string(),
             volume: 85,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn test_cycle_preset_serialization() {
+        let req = IpcRequest::CyclePreset {
+            channel: ChannelId::Game,
         };
         let json = serde_json::to_string(&req).unwrap();
         let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
