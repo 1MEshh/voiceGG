@@ -23,10 +23,12 @@
   $: gateThreshold = currentPreset.noise_gate?.threshold_db ?? -40;
   $: gateAttack = currentPreset.noise_gate?.attack_ms ?? 10;
   $: gateRelease = currentPreset.noise_gate?.release_ms ?? 100;
+  $: gateHysteresis = currentPreset.noise_gate?.hysteresis_db ?? 6;
 
   $: compThreshold = currentPreset.compressor?.threshold_db ?? -18;
   $: compRatio = currentPreset.compressor?.ratio ?? 3;
   $: compMakeup = currentPreset.compressor?.makeup_gain_db ?? 2;
+  $: compKnee = currentPreset.compressor?.knee_db ?? 3;
 
   // Real Gain Reduction calculation
   $: compReduction = (() => {
@@ -75,6 +77,15 @@
     onChangePreset(currentPreset);
   }
 
+  function handleGateHysteresisChange(val: number) {
+    if (!currentPreset.noise_gate) {
+      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: 100, hysteresis_db: val };
+    } else {
+      currentPreset.noise_gate.hysteresis_db = val;
+    }
+    onChangePreset(currentPreset);
+  }
+
   function handleCompThresholdChange(val: number) {
     if (!currentPreset.compressor) {
       currentPreset.compressor = { enabled: true, threshold_db: val, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
@@ -98,6 +109,15 @@
       currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: val };
     } else {
       currentPreset.compressor.makeup_gain_db = val;
+    }
+    onChangePreset(currentPreset);
+  }
+
+  function handleCompKneeChange(val: number) {
+    if (!currentPreset.compressor) {
+      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2, knee_db: val };
+    } else {
+      currentPreset.compressor.knee_db = val;
     }
     onChangePreset(currentPreset);
   }
@@ -446,6 +466,23 @@
             />
             <span class="dsp-val tabular-nums">{gateRelease} ms</span>
           </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">{$t('mic.hysteresis')}</span>
+            <input
+              type="range"
+              aria-label={$t('mic.gate_hysteresis_aria')}
+              aria-valuenow={gateHysteresis}
+              aria-valuemin="0"
+              aria-valuemax="12"
+              min="0"
+              max="12"
+              step="0.5"
+              value={gateHysteresis}
+              on:input={(e) => handleGateHysteresisChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val tabular-nums">{gateHysteresis} dB</span>
+          </div>
         </div>
       </div>
 
@@ -529,6 +566,23 @@
               class="dsp-slider"
             />
             <span class="dsp-val tabular-nums">{compMakeup > 0 ? '+' : ''}{compMakeup.toFixed(1)} dB</span>
+          </div>
+          <div class="dsp-control-row">
+            <span class="dsp-sublabel">{$t('mic.soft_knee')}</span>
+            <input
+              type="range"
+              aria-label={$t('mic.comp_knee_aria')}
+              aria-valuenow={compKnee}
+              aria-valuemin="0"
+              aria-valuemax="12"
+              min="0"
+              max="12"
+              step="0.5"
+              value={compKnee}
+              on:input={(e) => handleCompKneeChange(Number(e.currentTarget.value))}
+              class="dsp-slider"
+            />
+            <span class="dsp-val tabular-nums">{compKnee.toFixed(1)} dB</span>
           </div>
         </div>
       </div>

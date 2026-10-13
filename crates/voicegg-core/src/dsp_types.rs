@@ -174,6 +174,14 @@ impl Default for NoiseCancellerConfig {
     }
 }
 
+fn default_knee_db() -> f32 {
+    3.0
+}
+
+fn default_hysteresis_db() -> f32 {
+    6.0
+}
+
 /// Dynamic range compressor configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CompressorConfig {
@@ -189,6 +197,9 @@ pub struct CompressorConfig {
     pub release_ms: f32,
     /// Makeup gain in decibels (0.0 .. 24.0).
     pub makeup_gain_db: f32,
+    /// Soft knee transition width in decibels (0.0 .. 12.0).
+    #[serde(default = "default_knee_db")]
+    pub knee_db: f32,
 }
 
 impl Default for CompressorConfig {
@@ -200,6 +211,7 @@ impl Default for CompressorConfig {
             attack_ms: 10.0,
             release_ms: 100.0,
             makeup_gain_db: 0.0,
+            knee_db: 3.0,
         }
     }
 }
@@ -217,6 +229,9 @@ pub struct NoiseGateConfig {
     pub hold_ms: f32,
     /// Release time in milliseconds.
     pub release_ms: f32,
+    /// Hysteresis difference between open and close threshold in decibels (0.0 .. 24.0).
+    #[serde(default = "default_hysteresis_db")]
+    pub hysteresis_db: f32,
 }
 
 impl Default for NoiseGateConfig {
@@ -227,6 +242,7 @@ impl Default for NoiseGateConfig {
             attack_ms: 2.0,
             hold_ms: 50.0,
             release_ms: 80.0,
+            hysteresis_db: 6.0,
         }
     }
 }

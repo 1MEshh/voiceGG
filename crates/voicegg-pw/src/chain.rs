@@ -165,13 +165,13 @@ pub fn generate_mic_chain_conf(preset: &Preset, capabilities: &PluginCapabilitie
             if let Some(ref g) = preset.noise_gate {
                 (
                     g.threshold_db,
-                    g.threshold_db - 5.0,
+                    g.threshold_db - g.hysteresis_db.max(0.0),
                     (g.attack_ms / 1000.0).max(0.001),
                     (g.hold_ms / 1000.0).max(0.001),
                     (g.release_ms / 1000.0).max(0.001),
                 )
             } else {
-                (-45.0, -50.0, 0.002, 0.050, 0.080)
+                (-45.0, -51.0, 0.002, 0.050, 0.080)
             };
         nodes.push(format!(
             r#"                    {{

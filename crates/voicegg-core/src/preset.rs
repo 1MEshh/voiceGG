@@ -443,6 +443,7 @@ impl Preset {
                 attack_ms: 5.0,
                 release_ms: 60.0,
                 makeup_gain_db: 3.0,
+                knee_db: 3.0,
             }),
             noise_gate: Some(NoiseGateConfig {
                 enabled: true,
@@ -450,6 +451,7 @@ impl Preset {
                 attack_ms: 2.0,
                 hold_ms: 50.0,
                 release_ms: 80.0,
+                hysteresis_db: 6.0,
             }),
             limiter: Some(LimiterConfig {
                 enabled: true,

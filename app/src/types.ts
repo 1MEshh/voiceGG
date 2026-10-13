@@ -55,6 +55,7 @@ export interface CompressorConfig {
   attack_ms: number;
   release_ms: number;
   makeup_gain_db: number;
+  knee_db?: number;
 }
 
 export interface NoiseGateConfig {
@@ -63,6 +64,7 @@ export interface NoiseGateConfig {
   attack_ms: number;
   hold_ms: number;
   release_ms: number;
+  hysteresis_db?: number;
 }
 
 export interface LimiterConfig {

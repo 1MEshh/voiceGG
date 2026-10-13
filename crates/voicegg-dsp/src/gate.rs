@@ -17,6 +17,7 @@ pub struct NoiseGate {
     sample_rate: f32,
     enabled: bool,
     threshold_linear: f32,
+    close_threshold_linear: f32,
     attack_coeff: f32,
     release_coeff: f32,
     hold_samples: usize,
@@ -33,6 +34,7 @@ impl NoiseGate {
             sample_rate,
             enabled: config.enabled,
             threshold_linear: 0.0,
+            close_threshold_linear: 0.0,
             attack_coeff: 0.0,
             release_coeff: 0.0,
             hold_samples: 0,
@@ -48,6 +50,8 @@ impl NoiseGate {
     pub fn update_config(&mut self, config: &NoiseGateConfig) {
         self.enabled = config.enabled;
         self.threshold_linear = 10.0_f32.powf(config.threshold_db / 20.0);
+        let close_db = config.threshold_db - config.hysteresis_db.max(0.0);
+        self.close_threshold_linear = 10.0_f32.powf(close_db / 20.0);
         self.attack_coeff = (-1.0 / (config.attack_ms.max(0.1) * 0.001 * self.sample_rate)).exp();
         self.release_coeff = (-1.0 / (config.release_ms.max(1.0) * 0.001 * self.sample_rate)).exp();
         self.hold_samples = (config.hold_ms * 0.001 * self.sample_rate) as usize;
@@ -84,7 +88,7 @@ impl NoiseGate {
                 }
             }
             GateState::Open => {
-                if abs_in < self.threshold_linear {
+                if abs_in < self.close_threshold_linear {
                     self.state = GateState::Holding;
                     self.hold_counter = 0;
                 }
@@ -151,5 +155,31 @@ mod tests {
         for sample in buffer {
             assert_eq!(sample, 0.0);
         }
+    }
+
+    #[test]
+    fn test_gate_hysteresis_behavior() {
+        let cfg = NoiseGateConfig {
+            enabled: true,
+            threshold_db: -20.0, // 0.1 linear
+            hysteresis_db: 6.0,  // close threshold is -26.0 dBFS (~0.0501)
+            attack_ms: 0.1,
+            hold_ms: 10.0,
+            release_ms: 10.0,
+        };
+
+        let mut gate = NoiseGate::new(48000.0, &cfg);
+
+        // 1. Open the gate with signal above -20 dBFS (e.g. 0.2)
+        let mut open_buf = vec![0.2_f32; 100];
+        gate.process_slice(&mut open_buf);
+        assert!(gate.current_gain > 0.95, "Gate should be open");
+
+        // 2. Feed signal between open and close threshold: 0.08 (~-22 dBFS)
+        // With hysteresis, this must NOT close the gate!
+        let mut hysteresis_buf = vec![0.08_f32; 50];
+        gate.process_slice(&mut hysteresis_buf);
+        assert_eq!(gate.state, GateState::Open, "Gate must remain open within hysteresis zone");
+        assert!(gate.current_gain > 0.95);
     }
 }
