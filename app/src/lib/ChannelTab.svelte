@@ -3,6 +3,7 @@
   import { CHANNELS } from './theme';
   import EqGraph from './EqGraph.svelte';
   import { Search, Star, Sliders, Waves, Sparkles, Volume2 } from '@lucide/svelte';
+  import { t } from './i18n';
 
   export let channel: ChannelId;
   export let currentPreset: Preset;
@@ -46,7 +47,7 @@
       <div class="preset-titles">
         <div class="preset-title-row">
           <span class="preset-name">{currentPreset.name}</span>
-          <button class="star-btn" aria-label="Add {currentPreset.name} to Favorites" title="Add to Favorites">
+          <button class="star-btn" aria-label={$t('channel_tab.add_favorite', { name: currentPreset.name })} title={$t('channel_tab.add_favorite', { name: currentPreset.name })}>
             <Star size={14} fill="#eab308" color="#eab308" />
           </button>
         </div>
@@ -54,22 +55,22 @@
       </div>
     </div>
 
-    <button class="browse-btn" aria-label="Browse {info.label} presets" on:click={onOpenBrowser}>
+    <button class="browse-btn" aria-label={$t('channel_tab.browse_presets_aria', { channel: $t(`channels.${channel}`) })} on:click={onOpenBrowser}>
       <Search size={14} />
-      <span>BROWSE PRESETS</span>
+      <span>{$t('channel_tab.browse_presets')}</span>
     </button>
   </div>
 
   <!-- Favorites Strip (1 to 7 slots) -->
   <div class="favorites-strip">
-    <span class="fav-label">FAVORITES:</span>
+    <span class="fav-label">{$t('channel_tab.favorites')}</span>
     <div class="fav-slots">
       {#each categoryPresets.slice(0, 7) as favPreset, idx}
         <button
           class="fav-pill"
           class:active={favPreset.id === currentPreset.id}
           style={favPreset.id === currentPreset.id ? `border-color: ${info.defaultColor}; color: ${info.defaultColor}; background: ${info.defaultColor}18;` : ''}
-          aria-label="Select favorite {idx + 1}: {favPreset.name}"
+          aria-label={$t('channel_tab.select_favorite', { idx: idx + 1, name: favPreset.name })}
           on:click={() => onApplyPreset(favPreset)}
         >
           <span class="fav-idx tabular-nums">{idx + 1}</span>
@@ -86,22 +87,22 @@
       <div class="card-header">
         <div class="card-title">
           <Sliders size={15} color={info.defaultColor} />
-          <span>PARAMETRIC EQUALIZER (10-BAND)</span>
+          <span>{$t('channel_tab.parametric_eq')}</span>
         </div>
         <div class="card-actions">
           <button
             class="bypass-btn"
             class:bypassed={!currentPreset.eq.enabled}
             on:click={handleToggleBypass}
-            title={currentPreset.eq.enabled ? "Bypass Equalizer" : "Enable Equalizer"}
-            aria-label={currentPreset.eq.enabled ? "Bypass Equalizer" : "Enable Equalizer"}
+            title={currentPreset.eq.enabled ? $t('channel_tab.bypass_eq') : $t('channel_tab.enable_eq')}
+            aria-label={currentPreset.eq.enabled ? $t('channel_tab.bypass_eq') : $t('channel_tab.enable_eq')}
           >
-            {!currentPreset.eq.enabled ? 'EQ BYPASSED' : 'BYPASS EQ'}
+            {!currentPreset.eq.enabled ? $t('channel_tab.eq_bypassed') : $t('channel_tab.bypass_eq')}
           </button>
           <label class="toggle-switch">
             <input
               type="checkbox"
-              aria-label="Toggle Equalizer Enabled"
+              aria-label={$t('channel_tab.toggle_eq_aria')}
               bind:checked={currentPreset.eq.enabled}
               on:change={() => {
                 onChangeEq(currentPreset.eq);
@@ -127,10 +128,10 @@
       <!-- Quick Tone Sliders -->
       <div class="quick-tone-row">
         <div class="tone-slider-group">
-          <span class="tone-name">BASS</span>
+          <span class="tone-name">{$t('channel_tab.bass_depth')}</span>
           <input
             type="range"
-            aria-label="Bass Tone Gain"
+            aria-label={$t('channel_tab.bass_aria')}
             aria-valuenow={currentPreset.eq.bass_db}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -145,10 +146,10 @@
         </div>
 
         <div class="tone-slider-group">
-          <span class="tone-name">VOICE</span>
+          <span class="tone-name">{$t('channel_tab.vocal_clarity')}</span>
           <input
             type="range"
-            aria-label="Vocal Tone Gain"
+            aria-label={$t('channel_tab.voice_aria')}
             aria-valuenow={currentPreset.eq.voice_db}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -163,10 +164,10 @@
         </div>
 
         <div class="tone-slider-group">
-          <span class="tone-name">TREBLE</span>
+          <span class="tone-name">{$t('channel_tab.crisp_air')}</span>
           <input
             type="range"
-            aria-label="Treble Tone Gain"
+            aria-label={$t('channel_tab.treble_aria')}
             aria-valuenow={currentPreset.eq.treble_db}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -188,21 +189,21 @@
         <div class="card-header">
           <div class="card-title">
             <Sparkles size={15} color="var(--color-channel-game)" />
-            <span>SPATIAL AUDIO (VIRTUAL SURROUND)</span>
+            <span>{$t('channel_tab.spatial_audio')}</span>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" aria-label="Toggle Spatial Audio" bind:checked={spatialEnabled} />
+            <input type="checkbox" aria-label={$t('channel_tab.toggle_spatial_aria')} bind:checked={spatialEnabled} />
             <span class="toggle-slider"></span>
           </label>
         </div>
         <p class="card-info">
-          Directional soundstage virtualization for pin-point enemy footstep cues.
+          {$t('channel_tab.spatial_audio_desc')}
         </p>
         <div class="control-row">
-          <span class="control-label">Immersion Distance</span>
+          <span class="control-label">{$t('channel_tab.immersion_distance')}</span>
           <input
             type="range"
-            aria-label="Immersion Distance"
+            aria-label={$t('channel_tab.immersion_distance')}
             aria-valuenow={spatialDistance}
             aria-valuemin="0"
             aria-valuemax="100"
@@ -219,16 +220,16 @@
         <div class="card-header">
           <div class="card-title">
             <Volume2 size={15} color="var(--color-channel-game)" />
-            <span>VOLUME NORMALIZER</span>
+            <span>{$t('channel_tab.volume_normalizer')}</span>
           </div>
         </div>
         <p class="card-info">
-          Clamps explosive peaks while amplifying quiet ambient footsteps.
+          {$t('channel_tab.volume_normalizer_desc')}
         </p>
         <div class="radio-group">
-          <button class="pill-btn" class:active={smartVolume === 'quiet'} on:click={() => smartVolume = 'quiet'}>QUIET</button>
-          <button class="pill-btn" class:active={smartVolume === 'balanced'} on:click={() => smartVolume = 'balanced'}>BALANCED</button>
-          <button class="pill-btn" class:active={smartVolume === 'loud'} on:click={() => smartVolume = 'loud'}>LOUD</button>
+          <button class="pill-btn" class:active={smartVolume === 'quiet'} on:click={() => smartVolume = 'quiet'}>{$t('channel_tab.quiet')}</button>
+          <button class="pill-btn" class:active={smartVolume === 'balanced'} on:click={() => smartVolume = 'balanced'}>{$t('channel_tab.balanced')}</button>
+          <button class="pill-btn" class:active={smartVolume === 'loud'} on:click={() => smartVolume = 'loud'}>{$t('channel_tab.loud')}</button>
         </div>
       </div>
     {/if}
@@ -238,17 +239,17 @@
         <div class="card-header">
           <div class="card-title">
             <Waves size={15} color="var(--color-channel-chat)" />
-            <span>NOISE REMOVER</span>
+            <span>{$t('channel_tab.noise_remover')}</span>
           </div>
         </div>
         <p class="card-info">
-          Suppresses incoming background static, keyboard clicks, and room noise from incoming voice chat.
+          {$t('channel_tab.noise_remover_desc')}
         </p>
         <div class="control-row">
-          <span class="control-label">Suppression</span>
+          <span class="control-label">{$t('channel_tab.suppression')}</span>
           <input
             type="range"
-            aria-label="Noise Suppression"
+            aria-label={$t('channel_tab.suppression_aria')}
             aria-valuenow={chatNoiseAmount}
             aria-valuemin="0"
             aria-valuemax="100"
@@ -257,7 +258,7 @@
             bind:value={chatNoiseAmount}
             class="effect-slider"
           />
-          <span class="control-val tabular-nums">{chatNoiseAmount > 0 ? chatNoiseAmount + '%' : 'OFF'}</span>
+          <span class="control-val tabular-nums">{chatNoiseAmount > 0 ? chatNoiseAmount + '%' : $t('channel_tab.off')}</span>
         </div>
       </div>
     {/if}
@@ -646,7 +647,7 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--color-text-primary);
-    text-align: right;
+    text-align: end;
   }
 
   .radio-group {

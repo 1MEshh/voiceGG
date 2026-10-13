@@ -22,11 +22,18 @@ fn default_app_volume() -> u8 {
     100
 }
 
+fn default_language() -> String {
+    "en".to_string()
+}
+
 /// Global VoiceGG state and configuration saved to disk.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VoiceggConfig {
     /// Schema version for future migrations.
     pub version: u32,
+    /// Selected UI language code (e.g. "en", "ar").
+    #[serde(default = "default_language")]
+    pub language: String,
     /// Application routing rules.
     pub routing_rules: Vec<AppRouteRule>,
     /// Active preset IDs per channel.
@@ -113,6 +120,7 @@ impl Default for VoiceggConfig {
 
         Self {
             version: 1,
+            language: "en".to_string(),
             routing_rules,
             active_presets,
             volumes,

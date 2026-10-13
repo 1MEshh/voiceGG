@@ -96,6 +96,11 @@ pub enum IpcRequest {
     PanicReset,
     /// Gracefully shut down daemon, unlinking socket and tearing down virtual devices.
     Shutdown,
+    /// Update UI language setting.
+    SetLanguage {
+        /// Language code (e.g. "en", "ar").
+        language: String,
+    },
 }
 
 /// Responses returned from Daemon to Client.
@@ -220,5 +225,15 @@ mod tests {
         let json_m = serde_json::to_string(&resp_meters).unwrap();
         let decoded_m: IpcResponse = serde_json::from_str(&json_m).unwrap();
         assert_eq!(resp_meters, decoded_m);
+    }
+
+    #[test]
+    fn test_set_language_serialization() {
+        let req = IpcRequest::SetLanguage {
+            language: "ar".to_string(),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, decoded);
     }
 }

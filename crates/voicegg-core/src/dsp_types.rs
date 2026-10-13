@@ -275,4 +275,3 @@ impl Default for PluginCapabilities {
         }
     }
 }
-

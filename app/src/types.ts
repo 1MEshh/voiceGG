@@ -92,6 +92,7 @@ export interface AppRouteRule {
 }
 
 export interface VoiceggConfig {
+  language?: string;
   active_presets: Record<ChannelId, string>;
   volumes: Record<ChannelId, number>;
   muted: Record<ChannelId, boolean>;

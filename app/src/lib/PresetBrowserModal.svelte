@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ChannelId, Preset } from '../types';
   import { X, Search, Check, Sliders } from '@lucide/svelte';
+  import { t } from './i18n';
 
   export let isOpen: boolean;
   export let activeChannel: ChannelId = 'game';
@@ -42,7 +43,7 @@
       class="modal-window"
       role="dialog"
       aria-modal="true"
-      aria-label="Preset Browser Modal"
+      aria-label={$t('presets.modal_aria')}
       tabindex="-1"
       on:click|stopPropagation
       on:keydown|stopPropagation
@@ -50,53 +51,53 @@
       <div class="modal-header">
         <div class="header-left">
           <Sliders size={18} color="var(--color-accent-brand)" />
-          <span class="modal-title">BROWSE EQUALIZER PRESETS</span>
+          <span class="modal-title">{$t('presets.browse_presets')}</span>
         </div>
-        <button class="close-btn" aria-label="Close Preset Browser" on:click={onClose}>
+        <button class="close-btn" aria-label={$t('presets.close')} on:click={onClose}>
           <X size={18} />
         </button>
       </div>
 
       <div class="modal-toolbar">
-        <div class="category-tabs" role="tablist" aria-label="Preset Categories">
+        <div class="category-tabs" role="tablist" aria-label={$t('presets.categories_aria')}>
           <button
             class="cat-btn"
             class:active={selectedCategory === 'all'}
             aria-current={selectedCategory === 'all' ? 'true' : undefined}
             on:click={() => selectedCategory = 'all'}
-          >ALL</button>
+          >{$t('presets.all')}</button>
           <button
             class="cat-btn"
             class:active={selectedCategory === 'game'}
             aria-current={selectedCategory === 'game' ? 'true' : undefined}
             on:click={() => selectedCategory = 'game'}
-          >GAME</button>
+          >{$t('presets.game')}</button>
           <button
             class="cat-btn"
             class:active={selectedCategory === 'chat'}
             aria-current={selectedCategory === 'chat' ? 'true' : undefined}
             on:click={() => selectedCategory = 'chat'}
-          >CHAT</button>
+          >{$t('presets.chat')}</button>
           <button
             class="cat-btn"
             class:active={selectedCategory === 'media'}
             aria-current={selectedCategory === 'media' ? 'true' : undefined}
             on:click={() => selectedCategory = 'media'}
-          >MEDIA</button>
+          >{$t('presets.media')}</button>
           <button
             class="cat-btn"
             class:active={selectedCategory === 'mic'}
             aria-current={selectedCategory === 'mic' ? 'true' : undefined}
             on:click={() => selectedCategory = 'mic'}
-          >MIC</button>
+          >{$t('presets.mic')}</button>
         </div>
 
         <div class="search-box">
           <Search size={14} color="var(--color-text-muted)" />
           <input
             type="text"
-            aria-label="Search Presets"
-            placeholder="Search game (CS2, Apex...), tags, or profile..."
+            aria-label={$t('presets.search_aria')}
+            placeholder={$t('presets.search_placeholder')}
             bind:value={searchQuery}
           />
         </div>
@@ -109,15 +110,15 @@
             type="button"
             class="preset-card"
             class:active={isActive}
-            aria-label="Preset: {preset.name}, {preset.description}"
+            aria-label={$t('presets.preset_aria', { name: preset.name, desc: preset.description })}
             on:click={() => onSelectPreset(preset)}
           >
             <div class="card-top">
-              <span class="category-badge">{preset.category.toUpperCase()}</span>
+              <span class="category-badge">{$t(`channels.${preset.category}`) || preset.category.toUpperCase()}</span>
               {#if isActive}
                 <div class="active-badge">
                   <Check size={12} color="var(--color-accent-brand)" />
-                  <span>ACTIVE</span>
+                  <span>{$t('presets.active')}</span>
                 </div>
               {/if}
             </div>
@@ -133,7 +134,7 @@
           </button>
         {:else}
           <div class="no-results">
-            <span>No presets match your search query</span>
+            <span>{$t('presets.no_results')}</span>
           </div>
         {/each}
       </div>
@@ -293,7 +294,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    text-align: left;
+    text-align: start;
   }
   .preset-card:hover {
     background: var(--color-surface-hover);

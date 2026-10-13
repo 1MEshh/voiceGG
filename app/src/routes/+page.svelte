@@ -8,16 +8,19 @@
   import MicTab from '../lib/MicTab.svelte';
   import PresetBrowserModal from '../lib/PresetBrowserModal.svelte';
   import SettingsModal from '../lib/SettingsModal.svelte';
+  import { t, setLanguage } from '../lib/i18n';
 
   let activeTab: 'mixer' | ChannelId = 'mixer';
   let isPresetBrowserOpen = false;
   let isSettingsOpen = false;
   let streamerMode = false;
   let browserTargetChannel: ChannelId = 'game';
+  let languageInitialized = false;
 
   // Initial fallback status
   let status: SystemStatus = {
     config: {
+      language: 'en',
       active_presets: {
         master: 'game_flat',
         game: 'game_cs2',
@@ -74,6 +77,10 @@
     try {
       const res = await invoke<SystemStatus>('get_status');
       status = res;
+      if (!languageInitialized && res.config.language) {
+        setLanguage(res.config.language === 'ar' ? 'ar' : 'en');
+        languageInitialized = true;
+      }
     } catch (e) {
       console.warn('Could not fetch status from daemon:', e);
     }
@@ -165,7 +172,7 @@
   }
 
   async function handlePanicReset() {
-    if (confirm('Are you sure you want to reset all VoiceGG audio routing to system defaults?')) {
+    if (confirm($t('settings.confirm_panic'))) {
       try {
         await invoke('panic_reset');
         await fetchStatus();

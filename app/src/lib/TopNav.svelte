@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ChannelId } from '../types';
   import { SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, Settings, Radio, AlertTriangle } from '@lucide/svelte';
+  import { t } from './i18n';
 
   export let activeTab: 'mixer' | ChannelId = 'mixer';
   export let activeGame: string | null = null;
@@ -10,14 +11,17 @@
   export let onToggleStreamer: () => void;
   export let onPanicReset: () => void;
 
-  const tabs: { id: 'mixer' | ChannelId; label: string; icon: any }[] = [
-    { id: 'mixer', label: 'MIXER', icon: SlidersHorizontal },
-    { id: 'game', label: 'GAME', icon: Gamepad2 },
-    { id: 'chat', label: 'CHAT', icon: MessageSquare },
-    { id: 'media', label: 'MEDIA', icon: Music },
-    { id: 'aux', label: 'AUX', icon: Headphones },
-    { id: 'mic', label: 'MIC', icon: Mic },
-  ];
+  type NavTabId = 'mixer' | 'game' | 'chat' | 'media' | 'aux' | 'mic';
+
+  const tabIds: NavTabId[] = ['mixer', 'game', 'chat', 'media', 'aux', 'mic'];
+  const tabIcons: Record<NavTabId, any> = {
+    mixer: SlidersHorizontal,
+    game: Gamepad2,
+    chat: MessageSquare,
+    media: Music,
+    aux: Headphones,
+    mic: Mic,
+  };
 </script>
 
 <header class="top-nav">
@@ -27,23 +31,24 @@
   </div>
 
   <nav class="nav-tabs" aria-label="Audio Channels Navigation">
-    {#each tabs as tab}
+    {#each tabIds as tabId}
+      {@const label = $t(`nav.${tabId}`)}
       <button
         class="tab-btn"
-        class:active={activeTab === tab.id}
-        aria-current={activeTab === tab.id ? 'page' : undefined}
-        aria-label="Navigate to {tab.label} tab"
-        on:click={() => onSelectTab(tab.id)}
+        class:active={activeTab === tabId}
+        aria-current={activeTab === tabId ? 'page' : undefined}
+        aria-label={$t('nav.navigate_to', { label })}
+        on:click={() => onSelectTab(tabId)}
       >
-        <svelte:component this={tab.icon} size={15} />
-        <span>{tab.label}</span>
+        <svelte:component this={tabIcons[tabId]} size={15} />
+        <span>{label}</span>
       </button>
     {/each}
   </nav>
 
   <div class="actions">
     {#if activeGame}
-      <div class="game-badge" title="Auto Game Detection: {activeGame}">
+      <div class="game-badge" title={$t('nav.auto_game_detected', { game: activeGame })}>
         <span class="game-dot"></span>
         <span class="game-name">{activeGame}</span>
       </div>
@@ -52,24 +57,24 @@
       class="icon-btn"
       class:active={streamerMode}
       on:click={onToggleStreamer}
-      aria-label="Toggle Streamer Mode"
-      title="Streamer Mode"
+      aria-label={$t('nav.toggle_streamer')}
+      title={$t('nav.streamer_mode')}
     >
       <Radio size={16} />
     </button>
     <button
       class="icon-btn panic-btn"
       on:click={onPanicReset}
-      aria-label="Panic Reset Audio Engine"
-      title="Panic Reset"
+      aria-label={$t('nav.panic_reset_aria')}
+      title={$t('nav.panic_reset')}
     >
       <AlertTriangle size={16} />
     </button>
     <button
       class="icon-btn"
       on:click={onOpenSettings}
-      aria-label="Open Settings"
-      title="Settings"
+      aria-label={$t('nav.open_settings')}
+      title={$t('nav.settings')}
     >
       <Settings size={16} />
     </button>

@@ -2,6 +2,7 @@
   import type { Preset, AudioDevice, PluginCapabilities, ChannelMeter } from '../types';
   import EqGraph from './EqGraph.svelte';
   import { Waves, Shield, Sliders, Volume2, Mic, Search, Star, Headphones, AlertTriangle } from '@lucide/svelte';
+  import { t } from './i18n';
 
   export let currentPreset: Preset;
   export let allPresets: Preset[] = [];
@@ -121,7 +122,7 @@
       <div class="preset-titles">
         <div class="preset-title-row">
           <span class="preset-name">{currentPreset.name}</span>
-          <button class="star-btn" aria-label="Add {currentPreset.name} to Favorites" title="Add to Favorites">
+          <button class="star-btn" aria-label={$t('mic.add_favorite', { name: currentPreset.name })} title={$t('mic.add_favorite', { name: currentPreset.name })}>
             <Star size={14} fill="#eab308" color="#eab308" />
           </button>
         </div>
@@ -133,11 +134,11 @@
       <!-- Input Device Selector -->
       <select
         class="device-select"
-        aria-label="Physical Microphone Selector"
+        aria-label={$t('mic.input_selector_aria')}
         value={preferredInputDevice || 'default'}
         on:change={(e) => onSetDevice('source', e.currentTarget.value)}
       >
-        <option value="default">Default Input Device</option>
+        <option value="default">{$t('mic.default_input')}</option>
         {#each (devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
           <option value={dev.name}>{dev.description || dev.name}</option>
         {/each}
@@ -148,18 +149,18 @@
         <button
           class="monitor-btn"
           class:active={micMonitorEnabled}
-          aria-label={micMonitorEnabled ? "Mute live microphone loopback" : "Listen to microphone in real time"}
+          aria-label={micMonitorEnabled ? $t('mic.mute_loopback') : $t('mic.listen_realtime')}
           on:click={() => onSetMicMonitor(!micMonitorEnabled, micMonitorVolume)}
-          title={micMonitorEnabled ? "Mute live microphone loopback" : "Listen to microphone in real time"}
+          title={micMonitorEnabled ? $t('mic.mute_loopback') : $t('mic.listen_realtime')}
         >
           <Headphones size={13} />
-          <span>{micMonitorEnabled ? 'LIVE MONITORING' : 'MONITOR MIC'}</span>
+          <span>{micMonitorEnabled ? $t('mic.live_monitoring_btn') : $t('mic.monitor_mic')}</span>
         </button>
         {#if micMonitorEnabled}
           <div class="monitor-vol-box">
             <input
               type="range"
-              aria-label="Microphone Monitor Volume"
+              aria-label={$t('mic.monitor_vol_aria')}
               aria-valuenow={micMonitorVolume}
               aria-valuemin="0"
               aria-valuemax="100"
@@ -168,29 +169,29 @@
               value={micMonitorVolume}
               on:input={(e) => onSetMicMonitor(true, Number(e.currentTarget.value))}
               class="monitor-slider"
-              title={`Monitor Volume: ${micMonitorVolume}%`}
+              title={$t('mic.monitor_vol_title', { vol: micMonitorVolume })}
             />
             <span class="monitor-vol-text tabular-nums">{micMonitorVolume}%</span>
           </div>
         {/if}
       </div>
 
-      <button class="browse-btn" aria-label="Browse microphone presets" on:click={onOpenBrowser}>
+      <button class="browse-btn" aria-label={$t('mic.browse_presets_aria')} on:click={onOpenBrowser}>
         <Search size={14} />
-        <span>BROWSE PRESETS</span>
+        <span>{$t('mic.browse_presets')}</span>
       </button>
     </div>
   </div>
 
   <!-- Favorites Strip (1 to 7 slots) -->
   <div class="favorites-strip">
-    <span class="fav-label">FAVORITES:</span>
+    <span class="fav-label">{$t('mic.favorites')}</span>
     <div class="fav-slots">
       {#each micPresets.slice(0, 7) as favPreset, idx}
         <button
           class="fav-pill"
           class:active={favPreset.id === currentPreset.id}
-          aria-label="Select favorite {idx + 1}: {favPreset.name}"
+          aria-label={$t('mic.select_favorite', { idx: idx + 1, name: favPreset.name })}
           on:click={() => onChangePreset(favPreset)}
         >
           <span class="fav-idx tabular-nums">{idx + 1}</span>
@@ -206,7 +207,7 @@
     {#if capabilities && !capabilities.rnnoise}
       <div class="caps-banner">
         <AlertTriangle size={15} color="var(--color-accent-warning)" />
-        <span>Noise Remover is unavailable: install librnnoise_ladspa (<code class="caps-pkg">noise-suppression-for-voice</code> from AUR/package manager).</span>
+        <span>{$t('mic.caps_warning')}</span>
       </div>
     {/if}
 
@@ -215,13 +216,13 @@
       <div class="card-header">
         <div class="card-title">
           <Sliders size={15} color="var(--color-channel-mic)" />
-          <span>PARAMETRIC EQUALIZER (10-BAND)</span>
+          <span>{$t('mic.eq_title')}</span>
         </div>
         <div class="card-actions">
           <label class="toggle-switch">
             <input
               type="checkbox"
-              aria-label="Toggle Equalizer"
+              aria-label={$t('mic.toggle_eq')}
               bind:checked={currentPreset.eq.enabled}
               on:change={() => onChangePreset(currentPreset)}
             />
@@ -243,10 +244,10 @@
       <!-- Quick Tone Sliders -->
       <div class="quick-tone-row">
         <div class="tone-slider-group">
-          <span class="tone-name">BASS DEPTH</span>
+          <span class="tone-name">{$t('mic.bass_depth')}</span>
           <input
             type="range"
-            aria-label="Bass Depth"
+            aria-label={$t('mic.bass_depth_aria')}
             aria-valuenow={currentPreset.eq.bass_db ?? 0}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -260,10 +261,10 @@
           <span class="tone-val tabular-nums">{(currentPreset.eq.bass_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.bass_db ?? 0} dB</span>
         </div>
         <div class="tone-slider-group">
-          <span class="tone-name">VOCAL CLARITY</span>
+          <span class="tone-name">{$t('mic.vocal_clarity')}</span>
           <input
             type="range"
-            aria-label="Vocal Clarity"
+            aria-label={$t('mic.vocal_clarity_aria')}
             aria-valuenow={currentPreset.eq.voice_db ?? 0}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -277,10 +278,10 @@
           <span class="tone-val tabular-nums">{(currentPreset.eq.voice_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.voice_db ?? 0} dB</span>
         </div>
         <div class="tone-slider-group">
-          <span class="tone-name">CRISP AIR</span>
+          <span class="tone-name">{$t('mic.crisp_air')}</span>
           <input
             type="range"
-            aria-label="Crisp Air"
+            aria-label={$t('mic.crisp_air_aria')}
             aria-valuenow={currentPreset.eq.treble_db ?? 0}
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -303,30 +304,30 @@
         <div class="card-header">
           <div class="card-title">
             <Waves size={15} color="var(--color-channel-mic)" />
-            <span>NOISE REMOVER</span>
+            <span>{$t('mic.noise_remover')}</span>
           </div>
           <span class="dsp-badge" class:active={isRnnoiseAvailable && noiseAmount > 0}>
             {#if !isRnnoiseAvailable}
-              UNAVAILABLE
+              {$t('mic.unavailable')}
             {:else if noiseAmount > 0}
-              {noiseAmount}% WET
+              {$t('mic.wet', { amount: noiseAmount })}
             {:else}
-              BYPASS
+              {$t('mic.bypass')}
             {/if}
           </span>
         </div>
-        <p class="dsp-desc">Neural network background isolation for loud mechanical keyboards and fans.</p>
+        <p class="dsp-desc">{$t('mic.noise_remover_desc')}</p>
         <div class="dsp-presets-row">
-          <button class="dsp-pill" class:active={noiseAmount === 0} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(0)}>OFF (0%)</button>
-          <button class="dsp-pill" class:active={noiseAmount === 40} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(40)}>LOW (40%)</button>
-          <button class="dsp-pill" class:active={noiseAmount === 65} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(65)}>BALANCED (65%)</button>
-          <button class="dsp-pill" class:active={noiseAmount === 90} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(90)}>MAX (90%)</button>
+          <button class="dsp-pill" class:active={noiseAmount === 0} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(0)}>{$t('mic.off')}</button>
+          <button class="dsp-pill" class:active={noiseAmount === 40} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(40)}>{$t('mic.low')}</button>
+          <button class="dsp-pill" class:active={noiseAmount === 65} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(65)}>{$t('mic.balanced')}</button>
+          <button class="dsp-pill" class:active={noiseAmount === 90} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(90)}>{$t('mic.max')}</button>
         </div>
         <div class="dsp-control-row">
-          <span class="dsp-sublabel">Amount</span>
+          <span class="dsp-sublabel">{$t('mic.amount')}</span>
           <input
             type="range"
-            aria-label="Noise Remover Amount"
+            aria-label={$t('mic.amount_aria')}
             aria-valuenow={noiseAmount}
             aria-valuemin="0"
             aria-valuemax="100"
@@ -346,12 +347,12 @@
         <div class="card-header">
           <div class="card-title">
             <Shield size={15} color="var(--color-channel-mic)" />
-            <span>NOISE GATE</span>
+            <span>{$t('mic.noise_gate')}</span>
           </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
-              aria-label="Toggle Noise Gate"
+              aria-label={$t('mic.toggle_gate')}
               checked={currentPreset.noise_gate?.enabled ?? true}
               on:change={(e) => {
                 if (!currentPreset.noise_gate) {
@@ -365,20 +366,20 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <p class="dsp-desc">Silences microphone when voice level drops below the open threshold.</p>
+        <p class="dsp-desc">{$t('mic.noise_gate_desc')}</p>
         <div class="dsp-meter-row">
           {#if meter && meter.peak_dbfs > gateThreshold && (currentPreset.noise_gate?.enabled ?? true)}
-            <span class="gate-status-pill open">● GATE OPEN</span>
+            <span class="gate-status-pill open">{$t('mic.gate_open')}</span>
           {:else}
-            <span class="gate-status-pill closed">○ GATE CLOSED</span>
+            <span class="gate-status-pill closed">{$t('mic.gate_closed')}</span>
           {/if}
         </div>
         <div class="dsp-controls-list">
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Threshold</span>
+            <span class="dsp-sublabel">{$t('mic.threshold')}</span>
             <input
               type="range"
-              aria-label="Gate Threshold"
+              aria-label={$t('mic.gate_threshold_aria')}
               aria-valuenow={gateThreshold}
               aria-valuemin="-60"
               aria-valuemax="-10"
@@ -391,10 +392,10 @@
             <span class="dsp-val tabular-nums">{gateThreshold} dBFS</span>
           </div>
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Attack</span>
+            <span class="dsp-sublabel">{$t('mic.attack')}</span>
             <input
               type="range"
-              aria-label="Gate Attack"
+              aria-label={$t('mic.gate_attack_aria')}
               aria-valuenow={gateAttack}
               aria-valuemin="1"
               aria-valuemax="100"
@@ -407,10 +408,10 @@
             <span class="dsp-val tabular-nums">{gateAttack} ms</span>
           </div>
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Release</span>
+            <span class="dsp-sublabel">{$t('mic.release')}</span>
             <input
               type="range"
-              aria-label="Gate Release"
+              aria-label={$t('mic.gate_release_aria')}
               aria-valuenow={gateRelease}
               aria-valuemin="10"
               aria-valuemax="1000"
@@ -430,12 +431,12 @@
         <div class="card-header">
           <div class="card-title">
             <Volume2 size={15} color="var(--color-channel-mic)" />
-            <span>COMPRESSOR</span>
+            <span>{$t('mic.compressor')}</span>
           </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
-              aria-label="Toggle Compressor"
+              aria-label={$t('mic.toggle_compressor')}
               checked={currentPreset.compressor?.enabled ?? true}
               on:change={(e) => {
                 if (!currentPreset.compressor) {
@@ -449,18 +450,18 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <p class="dsp-desc">Even out shouting and quiet whispers into broadcast-consistent levels.</p>
+        <p class="dsp-desc">{$t('mic.compressor_desc')}</p>
         <div class="dsp-meter-row">
           <span class="compressor-gr-pill" class:active={parseFloat(compReduction) > 0}>
-            {parseFloat(compReduction) > 0 ? `-${compReduction} dB GAIN REDUCTION` : '0.0 dB GAIN REDUCTION'}
+            {parseFloat(compReduction) > 0 ? $t('mic.gain_reduction_val', { reduction: compReduction }) : $t('mic.gain_reduction_zero')}
           </span>
         </div>
         <div class="dsp-controls-list">
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Threshold</span>
+            <span class="dsp-sublabel">{$t('mic.threshold')}</span>
             <input
               type="range"
-              aria-label="Compressor Threshold"
+              aria-label={$t('mic.comp_threshold_aria')}
               aria-valuenow={compThreshold}
               aria-valuemin="-40"
               aria-valuemax="0"
@@ -473,10 +474,10 @@
             <span class="dsp-val tabular-nums">{compThreshold} dBFS</span>
           </div>
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Ratio</span>
+            <span class="dsp-sublabel">{$t('mic.ratio')}</span>
             <input
               type="range"
-              aria-label="Compressor Ratio"
+              aria-label={$t('mic.comp_ratio_aria')}
               aria-valuenow={compRatio}
               aria-valuemin="1"
               aria-valuemax="20"
@@ -490,10 +491,10 @@
             <span class="dsp-val tabular-nums">{compRatio.toFixed(1)}:1</span>
           </div>
           <div class="dsp-control-row">
-            <span class="dsp-sublabel">Makeup</span>
+            <span class="dsp-sublabel">{$t('mic.makeup_gain')}</span>
             <input
               type="range"
-              aria-label="Compressor Makeup Gain"
+              aria-label={$t('mic.comp_makeup_aria')}
               aria-valuenow={compMakeup}
               aria-valuemin="0"
               aria-valuemax="24"
@@ -651,9 +652,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding-right: 10px;
-    padding-left: 2px;
-    border-left: 1px solid var(--color-border-bright);
+    padding-inline-end: 10px;
+    padding-inline-start: 2px;
+    border-inline-start: 1px solid var(--color-border-bright);
   }
 
   .monitor-slider {
@@ -688,7 +689,7 @@
     font-weight: 700;
     color: var(--color-channel-mic);
     width: 28px;
-    text-align: right;
+    text-align: end;
   }
 
   .browse-btn {
@@ -1002,7 +1003,7 @@
     font-weight: 700;
     color: var(--color-text-primary);
     width: 65px;
-    text-align: right;
+    text-align: end;
   }
 
   .dsp-presets-row {
@@ -1046,15 +1047,6 @@
     color: #FDE68A;
     font-size: 11px;
     font-weight: 500;
-  }
-  .caps-pkg {
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 1px 5px;
-    border-radius: 3px;
-    color: #FCD34D;
-    border: 1px solid rgba(245, 158, 11, 0.3);
   }
 
   .dsp-card.is-disabled {

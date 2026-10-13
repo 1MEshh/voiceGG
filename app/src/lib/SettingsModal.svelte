@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { SystemStatus } from '../types';
   import { CHANNELS } from './theme';
-  import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu } from '@lucide/svelte';
+  import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu, Globe } from '@lucide/svelte';
+  import { t, locale, setLanguage } from './i18n';
 
   export let isOpen: boolean;
   export let status: SystemStatus;
@@ -23,7 +24,7 @@
       class="modal-window"
       role="dialog"
       aria-modal="true"
-      aria-label="Settings and Preferences Modal"
+      aria-label={$t('settings.modal_aria')}
       tabindex="-1"
       on:click|stopPropagation
       on:keydown|stopPropagation
@@ -31,26 +32,67 @@
       <div class="modal-header">
         <div class="header-left">
           <Settings size={18} color="var(--color-accent-brand)" />
-          <span class="modal-title">SETTINGS & PREFERENCES</span>
+          <span class="modal-title">{$t('settings.title')}</span>
         </div>
-        <button class="close-btn" aria-label="Close Settings" on:click={onClose}>
+        <button class="close-btn" aria-label={$t('settings.close')} on:click={onClose}>
           <X size={18} />
         </button>
       </div>
 
       <div class="modal-body">
+        <!-- Language Selection Section -->
+        <div class="setting-section">
+          <div class="section-title-row">
+            <Globe size={16} color="var(--color-accent-brand)" />
+            <span class="section-title">{$t('settings.language_section')}</span>
+          </div>
+          <div class="setting-card">
+            <div class="card-left">
+              <span class="card-label">{$t('settings.language')}</span>
+              <span class="card-desc">{$t('settings.language_desc')}</span>
+            </div>
+            <div class="lang-selector">
+              <button
+                type="button"
+                class="lang-pill"
+                class:active={$locale === 'en'}
+                aria-pressed={$locale === 'en'}
+                on:click={() => setLanguage('en')}
+              >
+                {$t('settings.english')}
+              </button>
+              <button
+                type="button"
+                class="lang-pill"
+                class:active={$locale === 'ar'}
+                aria-pressed={$locale === 'ar'}
+                on:click={() => setLanguage('ar')}
+              >
+                {$t('settings.arabic')}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Audio Safety Section -->
         <div class="setting-section">
           <div class="section-title-row">
             <ShieldCheck size={16} color="var(--color-accent-success)" />
-            <span class="section-title">AUDIO ENGINE & SAFETY</span>
+            <span class="section-title">{$t('settings.audio_safety')}</span>
           </div>
           <div class="setting-card">
             <div class="card-left">
-              <span class="card-label">True-Peak Hard Limiter</span>
-              <span class="card-desc">Non-bypassable −6 dBFS safety ceiling on Master output to protect hearing and hardware.</span>
+              <span class="card-label">{$t('settings.limiter_title')}</span>
+              <span class="card-desc">{$t('settings.limiter_desc')}</span>
             </div>
-            <span class="badge active-badge">MANDATORY ACTIVE</span>
+            <span class="badge active-badge">{$t('settings.mandatory_active')}</span>
+          </div>
+          <div class="setting-card">
+            <div class="card-left">
+              <span class="card-label">{$t('settings.low_latency_quantum')}</span>
+              <span class="card-desc">{$t('settings.low_latency_desc')}</span>
+            </div>
+            <span class="badge quantum-badge">{$t('settings.quantum_value')}</span>
           </div>
         </div>
 
@@ -58,17 +100,17 @@
         <div class="setting-section">
           <div class="section-title-row">
             <Cpu size={16} color="var(--color-accent-info)" />
-            <span class="section-title">GAMING INTEGRATION</span>
+            <span class="section-title">{$t('settings.gaming_integration')}</span>
           </div>
           <div class="setting-card">
             <div class="card-left">
-              <span class="card-label">Automatic Game Process Detection</span>
-              <span class="card-desc">Scans native and Wine/Proton games to auto-apply tuning presets and route to Game channel.</span>
+              <span class="card-label">{$t('settings.auto_game_detection')}</span>
+              <span class="card-desc">{$t('settings.auto_game_desc')}</span>
             </div>
             <label class="toggle-switch">
               <input
                 type="checkbox"
-                aria-label="Toggle Automatic Game Process Detection"
+                aria-label={$t('settings.toggle_auto_game_aria')}
                 bind:checked={autoDetect}
                 on:change={() => onToggleAutoDetect(autoDetect)}
               />
@@ -81,15 +123,16 @@
         <div class="setting-section">
           <div class="section-title-row">
             <Palette size={16} color="var(--color-channel-media)" />
-            <span class="section-title">CHANNEL ACCENT COLORS</span>
+            <span class="section-title">{$t('settings.channel_colors')}</span>
           </div>
           <div class="color-pickers-grid">
             {#each Object.entries(CHANNELS) as [id, info]}
+              {@const label = $t(`channels.${id}`) || info.label}
               <div class="color-item">
-                <span class="color-label">{info.label}</span>
+                <span class="color-label">{label}</span>
                 <input
                   type="color"
-                  aria-label="Accent color for {info.label}"
+                  aria-label={$t('settings.color_aria', { channel: label })}
                   value={info.defaultColor}
                   class="color-input"
                 />
@@ -102,21 +145,27 @@
         <div class="setting-section danger-section">
           <div class="section-title-row">
             <AlertTriangle size={16} color="var(--color-accent-danger)" />
-            <span class="section-title text-red">EMERGENCY RESTORE</span>
+            <span class="section-title text-red">{$t('settings.emergency_restore')}</span>
           </div>
           <div class="danger-card">
             <div class="card-left">
-              <span class="card-label">Reset Audio Graph</span>
-              <span class="card-desc">Unloads all VoiceGG virtual devices and immediately restores your original physical sinks and sources.</span>
+              <span class="card-label">{$t('settings.reset_audio_graph')}</span>
+              <span class="card-desc">{$t('settings.reset_desc')}</span>
             </div>
             <button
               class="danger-btn"
-              aria-label="Restore Audio Defaults"
+              aria-label={$t('settings.restore_aria')}
               on:click={onPanicReset}
             >
-              RESTORE DEFAULTS
+              {$t('settings.restore_defaults')}
             </button>
           </div>
+        </div>
+
+        <!-- Version Info -->
+        <div class="version-row">
+          <span class="version-label">{$t('settings.version')}</span>
+          <span class="version-val">{$t('settings.version_value')}</span>
         </div>
       </div>
     </div>
@@ -366,5 +415,65 @@
 
   .danger-btn:hover {
     background: #DC2626;
+  }
+
+  .lang-selector {
+    display: flex;
+    gap: 6px;
+    background: var(--color-surface-3);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-default);
+  }
+
+  .lang-pill {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .lang-pill:hover {
+    color: var(--color-text-primary);
+  }
+
+  .lang-pill.active {
+    background: var(--color-surface-1);
+    color: var(--color-accent-brand);
+    border-color: var(--color-border-bright);
+    box-shadow: var(--shadow-depth-sm);
+  }
+
+  .quantum-badge {
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-bright);
+    color: var(--color-accent-info);
+  }
+
+  .version-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .version-label {
+    font-weight: 700;
+  }
+
+  .version-val {
+    font-family: var(--font-mono);
+    color: var(--color-text-secondary);
   }
 </style>

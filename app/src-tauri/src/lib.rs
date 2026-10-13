@@ -215,9 +215,7 @@ async fn set_mic_monitor(
 }
 
 #[tauri::command]
-async fn get_capabilities(
-    state: State<'_, IpcState>,
-) -> Result<PluginCapabilities, String> {
+async fn get_capabilities(state: State<'_, IpcState>) -> Result<PluginCapabilities, String> {
     match state.send_request(IpcRequest::GetCapabilities).await? {
         IpcResponse::Capabilities(caps) => Ok(caps),
         IpcResponse::Error(e) => Err(e),
@@ -256,6 +254,17 @@ async fn save_preset(
     }
 }
 
+#[tauri::command]
+async fn set_language(language: String, state: State<'_, IpcState>) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetLanguage { language })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -271,14 +280,35 @@ pub fn run() {
                 Manager,
             };
 
-            let title_i = MenuItem::with_id(app, "title", "VoiceGG — Sonar for Linux", false, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "toggle_win", "Show / Hide VoiceGG", true, None::<&str>)?;
+            let title_i = MenuItem::with_id(
+                app,
+                "title",
+                "VoiceGG — Sonar for Linux",
+                false,
+                None::<&str>,
+            )?;
+            let show_i =
+                MenuItem::with_id(app, "toggle_win", "Show / Hide VoiceGG", true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
-            let mute_master_i = MenuItem::with_id(app, "mute_master", "Toggle Mute Master", true, None::<&str>)?;
-            let mute_mic_i = MenuItem::with_id(app, "mute_mic", "Toggle Mute Microphone", true, None::<&str>)?;
-            let monitor_mic_i = MenuItem::with_id(app, "monitor_mic", "Toggle Voice Monitor", true, None::<&str>)?;
+            let mute_master_i =
+                MenuItem::with_id(app, "mute_master", "Toggle Mute Master", true, None::<&str>)?;
+            let mute_mic_i = MenuItem::with_id(
+                app,
+                "mute_mic",
+                "Toggle Mute Microphone",
+                true,
+                None::<&str>,
+            )?;
+            let monitor_mic_i = MenuItem::with_id(
+                app,
+                "monitor_mic",
+                "Toggle Voice Monitor",
+                true,
+                None::<&str>,
+            )?;
             let sep2 = PredefinedMenuItem::separator(app)?;
-            let panic_i = MenuItem::with_id(app, "panic", "Emergency Reset Audio", true, None::<&str>)?;
+            let panic_i =
+                MenuItem::with_id(app, "panic", "Emergency Reset Audio", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit VoiceGG", true, None::<&str>)?;
 
             let menu = Menu::with_items(
@@ -403,7 +433,9 @@ pub fn run() {
                         let app_handle = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app_handle.state::<IpcState>();
-                            let _ = state.send_request(voicegg_ipc::IpcRequest::PanicReset).await;
+                            let _ = state
+                                .send_request(voicegg_ipc::IpcRequest::PanicReset)
+                                .await;
                         });
                     }
                     _ => {}
@@ -432,7 +464,8 @@ pub fn run() {
             panic_reset,
             set_mic_monitor,
             get_capabilities,
-            get_meters
+            get_meters,
+            set_language
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

@@ -99,7 +99,11 @@ impl RequestHandler for DaemonHandler {
                 {
                     let mut gm = self.graph.lock().unwrap();
                     if let Err(e) = gm.apply_preset(channel, &preset) {
-                        tracing::warn!("Failed to apply preset '{}' to {}: {e}", preset.name, channel);
+                        tracing::warn!(
+                            "Failed to apply preset '{}' to {}: {e}",
+                            preset.name,
+                            channel
+                        );
                     }
                 }
                 self.dirty.store(true, Ordering::Relaxed);
@@ -154,7 +158,10 @@ impl RequestHandler for DaemonHandler {
                     || clean_name.contains('\\')
                     || clean_name.chars().any(|c| c.is_control())
                 {
-                    tracing::warn!("Rejected invalid or suspicious binary name: {:?}", binary_name);
+                    tracing::warn!(
+                        "Rejected invalid or suspicious binary name: {:?}",
+                        binary_name
+                    );
                     return IpcResponse::Error(format!("Invalid binary name '{}'", binary_name));
                 }
                 let binary_name = clean_name.to_string();
@@ -235,6 +242,13 @@ impl RequestHandler for DaemonHandler {
                 let mut gm = self.graph.lock().unwrap();
                 let _ = gm.teardown_virtual_devices();
                 let _ = self.shutdown_tx.send(());
+                IpcResponse::Success
+            }
+            IpcRequest::SetLanguage { language } => {
+                tracing::info!(language = %language, "Setting application language");
+                let mut cfg = self.config.write().unwrap();
+                cfg.language = language;
+                self.dirty.store(true, Ordering::Relaxed);
                 IpcResponse::Success
             }
         }

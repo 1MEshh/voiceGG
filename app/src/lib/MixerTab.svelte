@@ -2,6 +2,7 @@
   import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter } from '../types';
   import { CHANNELS } from './theme';
   import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic } from '@lucide/svelte';
+  import { t } from './i18n';
 
   export let status: SystemStatus;
   export let micMonitorEnabled: boolean = false;
@@ -88,28 +89,28 @@
 <div class="mixer-view">
   <div class="device-header">
     <div class="device-col">
-      <span class="label">PLAYBACK DEVICE</span>
+      <span class="label">{$t('mixer.playback_device')}</span>
       <select
         class="master-select"
-        aria-label="Playback Device Selector"
+        aria-label={$t('mixer.playback_select_aria')}
         value={status.config.preferred_output_device || 'default'}
         on:change={(e) => onSetDevice('sink', e.currentTarget.value)}
       >
-        <option value="default">Default Headphone Sink</option>
+        <option value="default">{$t('mixer.default_sink')}</option>
         {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'sink') as dev}
           <option value={dev.name}>{dev.description || dev.name}</option>
         {/each}
       </select>
     </div>
     <div class="device-col">
-      <span class="label">MICROPHONE</span>
+      <span class="label">{$t('mixer.microphone')}</span>
       <select
         class="master-select"
-        aria-label="Microphone Device Selector"
+        aria-label={$t('mixer.mic_select_aria')}
         value={status.config.preferred_input_device || 'default'}
         on:change={(e) => onSetDevice('source', e.currentTarget.value)}
       >
-        <option value="default">Default System Mic</option>
+        <option value="default">{$t('mixer.default_source')}</option>
         {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
           <option value={dev.name}>{dev.description || dev.name}</option>
         {/each}
@@ -120,6 +121,7 @@
   <div class="channel-strips">
     {#each channelList as ch}
       {@const info = CHANNELS[ch]}
+      {@const chLabel = $t(`channels.${ch}`)}
       {@const vol = status.config.volumes[ch] ?? 100}
       {@const isMuted = status.config.muted[ch] ?? false}
       {@const presetId = status.config.active_presets[ch] ?? 'Default'}
@@ -132,7 +134,7 @@
         class:is-dimmed={isDraggingAny && dragOverChannel !== ch && ch !== 'mic'}
         class:is-eligible={isDraggingAny && ch !== 'mic'}
         role="region"
-        aria-label="{info.label} Channel Strip"
+        aria-label={$t('mixer.channel_strip_aria', { channel: chLabel })}
         on:dragenter={(e) => handleDragEnter(e, ch)}
         on:dragover={(e) => handleDragOver(e, ch)}
         on:dragleave={(e) => handleDragLeave(e, ch)}
@@ -140,12 +142,12 @@
       >
         <div class="strip-header">
           <svelte:component this={channelIcons[ch]} size={14} color={info.defaultColor} />
-          <span class="channel-name">{info.label}</span>
+          <span class="channel-name">{chLabel}</span>
         </div>
 
         <button
           class="preset-btn"
-          aria-label="Preset: {presetId}"
+          aria-label={$t('mixer.preset_aria', { preset: presetId })}
           on:click={() => onOpenPresetBrowser(ch)}
         >
           {presetId.replace(/^game_|^chat_|^media_|^mic_/, '').replace('_', ' ').toUpperCase()}
@@ -166,7 +168,7 @@
           </div>
           <input
             type="range"
-            aria-label="{info.label} Volume"
+            aria-label={$t('mixer.channel_vol_aria', { channel: chLabel })}
             aria-valuenow={vol}
             aria-valuemin="0"
             aria-valuemax="100"
@@ -185,8 +187,8 @@
             class="mute-btn"
             class:muted={isMuted}
             on:click={() => onSetMute(ch, !isMuted)}
-            aria-label={isMuted ? `Unmute ${info.label}` : `Mute ${info.label}`}
-            title={isMuted ? "Unmute" : "Mute"}
+            aria-label={isMuted ? $t('mixer.unmute_ch', { channel: chLabel }) : $t('mixer.mute_ch', { channel: chLabel })}
+            title={isMuted ? $t('mixer.unmute') : $t('mixer.mute')}
           >
             {#if isMuted} <VolumeX size={15} /> {:else} <Volume2 size={15} /> {/if}
           </button>
@@ -195,8 +197,8 @@
               class="strip-monitor-btn"
               class:active={micMonitorEnabled}
               on:click={() => onSetMicMonitor?.(!micMonitorEnabled, micMonitorVolume)}
-              aria-label={micMonitorEnabled ? "Disable microphone loopback monitoring" : "Enable microphone loopback monitoring"}
-              title={micMonitorEnabled ? "Mic Monitor: Active" : "Mic Monitor: Inactive"}
+              aria-label={micMonitorEnabled ? $t('mixer.disable_monitor') : $t('mixer.enable_monitor')}
+              title={micMonitorEnabled ? $t('mixer.monitor_active') : $t('mixer.monitor_inactive')}
             >
               <Headphones size={15} />
             </button>
@@ -211,7 +213,7 @@
                 role="button"
                 tabindex="0"
                 draggable="true"
-                aria-label="Route app {stream.binary_name || stream.app_name}"
+                aria-label={$t('mixer.route_app_aria', { name: stream.binary_name || stream.app_name })}
                 on:dragstart={(e) => handleDragStart(e, stream)}
                 on:dragend={handleDragEnd}
               >
@@ -221,7 +223,7 @@
             {/each}
             {#if streams.length === 0}
               <div class="empty-drop-hint" class:highlight={dragOverChannel === ch}>
-                {isDraggingAny ? 'DROP HERE' : 'NO APPS'}
+                {isDraggingAny ? $t('mixer.drop_here') : $t('mixer.no_apps')}
               </div>
             {/if}
           </div>
@@ -231,10 +233,10 @@
   </div>
 
   <div class="chatmix-bar">
-    <span class="chatmix-label game tabular-nums">GAME ({100 - Math.max(0, status.config.chatmix)}%)</span>
+    <span class="chatmix-label game tabular-nums">{$t('mixer.game')} ({100 - Math.max(0, status.config.chatmix)}%)</span>
     <input
       type="range"
-      aria-label="ChatMix Balance"
+      aria-label={$t('mixer.chatmix')}
       aria-valuenow={status.config.chatmix}
       aria-valuemin="-100"
       aria-valuemax="100"
@@ -244,7 +246,7 @@
       on:input={(e) => onSetChatMix(Number(e.currentTarget.value))}
       class="chatmix-slider"
     />
-    <span class="chatmix-label chat tabular-nums">CHAT ({100 + Math.min(0, status.config.chatmix)}%)</span>
+    <span class="chatmix-label chat tabular-nums">{$t('mixer.chat')} ({100 + Math.min(0, status.config.chatmix)}%)</span>
   </div>
 </div>
 
@@ -303,6 +305,7 @@
   }
 
   .channel-strips {
+    direction: ltr !important;
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 12px;
@@ -391,6 +394,7 @@
   }
 
   .fader-container {
+    direction: ltr !important;
     position: relative;
     height: 180px;
     width: 44px;
@@ -615,6 +619,7 @@
   }
 
   .chatmix-bar {
+    direction: ltr;
     display: flex;
     align-items: center;
     gap: 16px;

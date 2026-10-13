@@ -610,7 +610,10 @@ impl GraphManager {
     /// Changes the hardware input microphone source feeding into VoiceGG Mic.
     pub fn set_input_source(&mut self, source_name: &str) -> Result<()> {
         let target = if source_name == "default" || source_name.is_empty() {
-            self.state.original_default_source.clone().unwrap_or_default()
+            self.state
+                .original_default_source
+                .clone()
+                .unwrap_or_default()
         } else {
             source_name.to_string()
         };
@@ -891,4 +894,3 @@ mod tests {
         assert!(res.unwrap_err().to_string().contains("Feedback guard"));
     }
 }
-
