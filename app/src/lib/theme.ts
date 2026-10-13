@@ -42,7 +42,7 @@ export const CHANNELS: Record<ChannelId, ChannelInfo> = {
     id: 'mic',
     label: 'MIC',
     defaultColor: '#F97316', // Sonar Amber Orange
-    description: 'Physical microphone processing with AI noise reduction',
+    description: 'Physical microphone processing with deep noise reduction',
   },
 };
 

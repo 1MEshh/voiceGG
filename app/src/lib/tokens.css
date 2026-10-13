@@ -1,0 +1,134 @@
+/**
+ * VoiceGG 2.0 Design Tokens
+ * 3-Tier Architecture: Primitives -> Semantic -> Components
+ * Theme: SteelSeries Sonar Pro-Audio Dark Slate with Thmanyah Typography
+ */
+
+:root {
+  /* ==========================================================================
+     Tier 1: Primitives
+     ========================================================================== */
+
+  /* Neutrals: Rich Pro-Audio Dark Slate */
+  --color-neutral-950: #07090D;
+  --color-neutral-900: #0B0E14; /* App workspace background */
+  --color-neutral-850: #11151F; /* Surface 1: Cards & Panels */
+  --color-neutral-800: #161B26; /* Surface 2: Elevated Wells & Sub-panels */
+  --color-neutral-750: #1D2333; /* Surface 3: Controls, Sliders & Chips */
+  --color-neutral-700: #252D40; /* Surface Hover & Active States */
+  --color-neutral-600: #333D56; /* Active borders / high contrast */
+  --color-neutral-500: #64748B; /* Slate 500: Muted text / labels */
+  --color-neutral-400: #94A3B8; /* Slate 400: Secondary text / icons */
+  --color-neutral-300: #CBD5E1; /* Slate 300: Subtle text */
+  --color-neutral-200: #E2E8F0; /* Slate 200: Flat tactile fader thumbs */
+  --color-neutral-100: #F1F5F9; /* Slate 100: Bright headers */
+  --color-neutral-50:  #F8FAFC; /* Slate 50: Primary foreground */
+
+  /* Borders: Crisp 1px definition */
+  --color-border-subtle: #1C2230;
+  --color-border-default: #1F2637;
+  --color-border-bright: #2A344A;
+  --color-border-focus: #3B4660;
+
+  /* Typography */
+  --font-sans: 'thmanyah sans', 'IBM Plex Sans Arabic', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --tabular-nums: tabular-nums;
+
+  /* Brand Accent: Authentic SteelSeries Sonar Orange */
+  --color-accent-brand: #FF5200;
+  --color-accent-brand-hover: #FF661A;
+  --color-accent-brand-subtle: rgba(255, 82, 0, 0.12);
+  --color-accent-brand-border: rgba(255, 82, 0, 0.4);
+
+  /* Status Accents */
+  --color-accent-danger: #EF4444;
+  --color-accent-danger-subtle: rgba(239, 68, 68, 0.12);
+  --color-accent-warning: #F59E0B;
+  --color-accent-warning-subtle: rgba(245, 158, 11, 0.12);
+  --color-accent-success: #10B981;
+  --color-accent-success-subtle: rgba(16, 185, 129, 0.12);
+  --color-accent-info: #0EA5E9;
+  --color-accent-info-subtle: rgba(14, 165, 233, 0.12);
+
+  /* Channel Accents (Sonar Spec - used sparingly) */
+  --color-channel-master: #E2E8F0;
+  --color-channel-game: #10B981;
+  --color-channel-chat: #0EA5E9;
+  --color-channel-media: #EC4899;
+  --color-channel-aux: #8B5CF6;
+  --color-channel-mic: #F97316;
+
+  /* Radii: Crisp geometric corners */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Elevation: Clean 1px structural depth without neon slop */
+  --shadow-depth-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-depth-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-depth-lg: 0 6px 20px rgba(0, 0, 0, 0.55);
+
+  /* Motion */
+  --transition-fast: 120ms ease-out;
+  --transition-base: 150ms ease-out;
+  --transition-slow: 180ms ease-out;
+
+  /* Focus & Accessibility */
+  --focus-ring-color: var(--color-accent-brand);
+  --focus-ring-offset: 2px;
+
+
+  /* ==========================================================================
+     Tier 2: Semantic Tokens
+     ========================================================================== */
+
+  --color-bg-app: var(--color-neutral-900);
+  --color-surface-1: var(--color-neutral-850);
+  --color-surface-2: var(--color-neutral-800);
+  --color-surface-3: var(--color-neutral-750);
+  --color-surface-hover: var(--color-neutral-700);
+
+  --color-text-primary: var(--color-neutral-50);
+  --color-text-secondary: var(--color-neutral-400);
+  --color-text-muted: var(--color-neutral-500);
+
+  /* Interactive Targets (WCAG 2.1 AAA target size) */
+  --hit-target-min: 44px;
+
+
+  /* ==========================================================================
+     Tier 3: Component Tokens (Defaults)
+     ========================================================================== */
+
+  --fader-thumb-bg: var(--color-neutral-200);
+  --fader-thumb-border: #1E293B;
+  --fader-thumb-indicator: var(--color-accent-brand);
+  --meter-bar-width: 6px;
+}
+
+/* ==========================================================================
+   Global Base & Focus Rings
+   ========================================================================== */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-brand) !important;
+  outline-offset: var(--focus-ring-offset) !important;
+}
+
+/* Tabular numbers utility */
+.tabular-nums,
+[data-tabular] {
+  font-family: var(--font-mono);
+  font-variant-numeric: var(--tabular-nums);
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

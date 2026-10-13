@@ -42,34 +42,61 @@
       class="modal-window"
       role="dialog"
       aria-modal="true"
+      aria-label="Preset Browser Modal"
       tabindex="-1"
       on:click|stopPropagation
       on:keydown|stopPropagation
     >
       <div class="modal-header">
         <div class="header-left">
-          <Sliders size={18} color="#22c55e" />
+          <Sliders size={18} color="var(--color-accent-brand)" />
           <span class="modal-title">BROWSE EQUALIZER PRESETS</span>
         </div>
-        <button class="close-btn" on:click={onClose}>
+        <button class="close-btn" aria-label="Close Preset Browser" on:click={onClose}>
           <X size={18} />
         </button>
       </div>
 
       <div class="modal-toolbar">
-        <div class="category-tabs">
-          <button class="cat-btn" class:active={selectedCategory === 'all'} on:click={() => selectedCategory = 'all'}>ALL</button>
-          <button class="cat-btn" class:active={selectedCategory === 'game'} on:click={() => selectedCategory = 'game'}>GAME</button>
-          <button class="cat-btn" class:active={selectedCategory === 'chat'} on:click={() => selectedCategory = 'chat'}>CHAT</button>
-          <button class="cat-btn" class:active={selectedCategory === 'media'} on:click={() => selectedCategory = 'media'}>MEDIA</button>
-          <button class="cat-btn" class:active={selectedCategory === 'mic'} on:click={() => selectedCategory = 'mic'}>MIC</button>
+        <div class="category-tabs" role="tablist" aria-label="Preset Categories">
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'all'}
+            aria-current={selectedCategory === 'all' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'all'}
+          >ALL</button>
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'game'}
+            aria-current={selectedCategory === 'game' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'game'}
+          >GAME</button>
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'chat'}
+            aria-current={selectedCategory === 'chat' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'chat'}
+          >CHAT</button>
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'media'}
+            aria-current={selectedCategory === 'media' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'media'}
+          >MEDIA</button>
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'mic'}
+            aria-current={selectedCategory === 'mic' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'mic'}
+          >MIC</button>
         </div>
 
         <div class="search-box">
-          <Search size={14} color="#64748b" />
+          <Search size={14} color="var(--color-text-muted)" />
           <input
             type="text"
-            placeholder="Search game (CS2, Apex...), tags, or sound profile..."
+            aria-label="Search Presets"
+            placeholder="Search game (CS2, Apex...), tags, or profile..."
             bind:value={searchQuery}
           />
         </div>
@@ -82,13 +109,14 @@
             type="button"
             class="preset-card"
             class:active={isActive}
+            aria-label="Preset: {preset.name}, {preset.description}"
             on:click={() => onSelectPreset(preset)}
           >
             <div class="card-top">
               <span class="category-badge">{preset.category.toUpperCase()}</span>
               {#if isActive}
                 <div class="active-badge">
-                  <Check size={12} color="#22c55e" />
+                  <Check size={12} color="var(--color-accent-brand)" />
                   <span>ACTIVE</span>
                 </div>
               {/if}
@@ -117,8 +145,8 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    background: rgba(7, 9, 13, 0.78);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -128,14 +156,15 @@
   .modal-window {
     width: 780px;
     max-height: 80vh;
-    background: #14181f;
-    border: 1px solid #283344;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-depth-lg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     user-select: none;
+    font-family: var(--font-sans);
   }
 
   .modal-header {
@@ -143,8 +172,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    background: #181e28;
-    border-bottom: 1px solid #252f3e;
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-border-default);
   }
 
   .header-left {
@@ -154,21 +183,29 @@
   }
 
   .modal-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-text-primary);
     letter-spacing: 0.5px;
   }
 
   .close-btn {
     background: transparent;
-    border: none;
-    color: #94a3b8;
+    border: 1px solid transparent;
+    color: var(--color-text-secondary);
     cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
   }
-
   .close-btn:hover {
-    color: #f8fafc;
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-3);
+    border-color: var(--color-border-bright);
   }
 
   .modal-toolbar {
@@ -176,8 +213,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 20px;
-    background: #12151c;
-    border-bottom: 1px solid #202733;
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-border-default);
     gap: 16px;
   }
 
@@ -187,25 +224,26 @@
   }
 
   .cat-btn {
-    padding: 5px 12px;
-    background: #1c232d;
-    border: 1px solid #283340;
-    border-radius: 5px;
-    color: #94a3b8;
+    padding: 6px 12px;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
     font-size: 11px;
     font-weight: 700;
+    font-family: var(--font-sans);
     cursor: pointer;
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
   }
-
   .cat-btn:hover {
-    color: #f1f5f9;
-    background: #252f3e;
+    color: var(--color-text-primary);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-bright);
   }
-
   .cat-btn.active {
-    background: #22c55e1a;
-    border-color: #22c55e88;
-    color: #4ade80;
+    background: var(--color-accent-brand-subtle);
+    border-color: var(--color-accent-brand);
+    color: var(--color-accent-brand);
   }
 
   .search-box {
@@ -213,10 +251,14 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #181d26;
-    border: 1px solid #27313f;
-    border-radius: 6px;
-    padding: 6px 10px;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    transition: border-color var(--transition-fast);
+  }
+  .search-box:focus-within {
+    border-color: var(--color-accent-brand);
   }
 
   .search-box input {
@@ -224,8 +266,12 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #f1f5f9;
+    color: var(--color-text-primary);
     font-size: 12px;
+    font-family: var(--font-sans);
+  }
+  .search-box input::placeholder {
+    color: var(--color-text-muted);
   }
 
   .preset-grid {
@@ -238,25 +284,24 @@
   }
 
   .preset-card {
-    background: #171d26;
-    border: 1px solid #242e3d;
-    border-radius: 8px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
     padding: 14px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
     display: flex;
     flex-direction: column;
     gap: 6px;
+    text-align: left;
   }
-
   .preset-card:hover {
-    background: #1e2634;
-    border-color: #38475c;
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-bright);
   }
-
   .preset-card.active {
-    border-color: #22c55e;
-    background: #14241d;
+    border-color: var(--color-accent-brand);
+    background: var(--color-accent-brand-subtle);
   }
 
   .card-top {
@@ -267,8 +312,8 @@
 
   .category-badge {
     font-size: 9px;
-    font-weight: 700;
-    color: #64748b;
+    font-weight: 800;
+    color: var(--color-text-muted);
     letter-spacing: 0.5px;
   }
 
@@ -277,19 +322,19 @@
     align-items: center;
     gap: 4px;
     font-size: 10px;
-    font-weight: 700;
-    color: #4ade80;
+    font-weight: 800;
+    color: var(--color-accent-brand);
   }
 
   .preset-card-title {
     font-size: 13px;
     font-weight: 700;
-    color: #f1f5f9;
+    color: var(--color-text-primary);
   }
 
   .preset-card-desc {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--color-text-secondary);
     line-height: 1.4;
     margin: 0;
   }
@@ -303,17 +348,19 @@
 
   .tag-pill {
     font-size: 10px;
-    color: #64748b;
-    background: #12151c;
+    color: var(--color-text-muted);
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-subtle);
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
   }
 
   .no-results {
     grid-column: span 2;
     text-align: center;
     padding: 40px;
-    color: #64748b;
+    color: var(--color-text-muted);
     font-style: italic;
   }
 </style>

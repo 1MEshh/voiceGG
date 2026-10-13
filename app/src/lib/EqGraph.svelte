@@ -89,20 +89,20 @@
     ctx.scale(dpr, dpr);
 
     // 1. Clear background
-    ctx.fillStyle = '#14181f';
+    ctx.fillStyle = '#11151F';
     ctx.fillRect(0, 0, width, height);
 
     // 2. Frequency range regions
     const regions = [
-      { name: 'SUB BASS', start: 20, end: 60, col: 'rgba(255, 255, 255, 0.015)' },
-      { name: 'BASS', start: 60, end: 250, col: 'rgba(255, 255, 255, 0.025)' },
-      { name: 'LOW MIDS', start: 250, end: 500, col: 'rgba(255, 255, 255, 0.015)' },
-      { name: 'MID RANGE', start: 500, end: 2000, col: 'rgba(255, 255, 255, 0.025)' },
-      { name: 'UPPER MIDS', start: 2000, end: 6000, col: 'rgba(255, 255, 255, 0.015)' },
-      { name: 'HIGHS', start: 6000, end: 20000, col: 'rgba(255, 255, 255, 0.025)' },
+      { name: 'SUB BASS', start: 20, end: 60, col: 'rgba(255, 255, 255, 0.012)' },
+      { name: 'BASS', start: 60, end: 250, col: 'rgba(255, 255, 255, 0.022)' },
+      { name: 'LOW MIDS', start: 250, end: 500, col: 'rgba(255, 255, 255, 0.012)' },
+      { name: 'MID RANGE', start: 500, end: 2000, col: 'rgba(255, 255, 255, 0.022)' },
+      { name: 'UPPER MIDS', start: 2000, end: 6000, col: 'rgba(255, 255, 255, 0.012)' },
+      { name: 'HIGHS', start: 6000, end: 20000, col: 'rgba(255, 255, 255, 0.022)' },
     ];
 
-    ctx.font = '10px sans-serif';
+    ctx.font = '10px "IBM Plex Sans Arabic", "Inter", sans-serif';
     ctx.textAlign = 'center';
     for (const r of regions) {
       const x1 = freqToX(r.start, width);
@@ -110,21 +110,21 @@
       ctx.fillStyle = r.col;
       ctx.fillRect(x1, 0, x2 - x1, height);
 
-      ctx.fillStyle = '#4b5563';
+      ctx.fillStyle = '#64748B';
       ctx.fillText(r.name, (x1 + x2) / 2, 16);
     }
 
     // 3. Grid lines (dB lines)
     ctx.lineWidth = 1;
-    ctx.strokeStyle = '#222933';
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px monospace';
+    ctx.strokeStyle = '#1F2637';
+    ctx.fillStyle = '#64748B';
+    ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textAlign = 'right';
 
     for (const db of [-12, -6, 0, 6, 12]) {
       const y = gainToY(db, height);
       ctx.beginPath();
-      ctx.strokeStyle = db === 0 ? '#334155' : '#1e2632';
+      ctx.strokeStyle = db === 0 ? '#2A344A' : '#1F2637';
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
@@ -135,10 +135,11 @@
     // Frequency grid vertical lines
     const freqs = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     ctx.textAlign = 'center';
+    ctx.font = '10px "JetBrains Mono", monospace';
     for (const f of freqs) {
       const x = freqToX(f, width);
       ctx.beginPath();
-      ctx.strokeStyle = '#1e2632';
+      ctx.strokeStyle = '#1F2637';
       ctx.moveTo(x, 24);
       ctx.lineTo(x, height);
       ctx.stroke();
@@ -348,10 +349,10 @@
     position: relative;
     width: 100%;
     height: 240px;
-    background: #14181f;
-    border-radius: 8px;
+    background: var(--color-surface-1);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    border: 1px solid #242c38;
+    border: 1px solid var(--color-border-default);
   }
 
   canvas {
@@ -368,22 +369,25 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(17, 21, 31, 0.9);
     backdrop-filter: blur(6px);
-    border: 1px solid #334155;
-    padding: 3px 8px;
-    border-radius: 6px;
+    border: 1px solid var(--color-border-bright);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
+    font-family: var(--font-sans);
     user-select: none;
+    box-shadow: var(--shadow-depth-sm);
   }
 
   .badge-title {
     font-weight: 700;
-    color: #94a3b8;
+    color: var(--color-text-secondary);
   }
 
   .badge-val {
-    font-family: monospace;
-    color: #f1f5f9;
+    font-family: var(--font-mono);
+    font-variant-numeric: var(--tabular-nums);
+    color: var(--color-text-primary);
   }
 </style>

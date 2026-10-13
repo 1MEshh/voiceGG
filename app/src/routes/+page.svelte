@@ -299,7 +299,7 @@
   :global(body) {
     background-color: var(--color-bg-app, #0B0E14);
     color: var(--color-text-primary, #F8FAFC);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-sans);
     overflow: hidden;
   }
 

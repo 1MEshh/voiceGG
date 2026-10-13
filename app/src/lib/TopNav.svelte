@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ChannelId } from '../types';
-  import { CHANNELS } from './theme';
   import { SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, Settings, Radio, AlertTriangle } from '@lucide/svelte';
 
   export let activeTab: 'mixer' | ChannelId = 'mixer';
@@ -23,15 +22,17 @@
 
 <header class="top-nav">
   <div class="brand">
-    <img src="/logo.svg" alt="VoiceGG" class="logo-img" />
+    <img src="/logo.svg" alt="VoiceGG logo" class="logo-img" />
     <span class="app-title">VOICEGG</span>
   </div>
 
-  <nav class="nav-tabs">
+  <nav class="nav-tabs" aria-label="Audio Channels Navigation">
     {#each tabs as tab}
       <button
         class="tab-btn"
         class:active={activeTab === tab.id}
+        aria-current={activeTab === tab.id ? 'page' : undefined}
+        aria-label="Navigate to {tab.label} tab"
         on:click={() => onSelectTab(tab.id)}
       >
         <svelte:component this={tab.icon} size={15} />
@@ -42,18 +43,35 @@
 
   <div class="actions">
     {#if activeGame}
-      <div class="game-badge" title="Auto Game Detection">
-        {activeGame}
+      <div class="game-badge" title="Auto Game Detection: {activeGame}">
+        <span class="game-dot"></span>
+        <span class="game-name">{activeGame}</span>
       </div>
     {/if}
-    <button class="icon-btn" class:active={streamerMode} on:click={onToggleStreamer} title="Streamer Mode">
-      <Radio size={15} />
+    <button
+      class="icon-btn"
+      class:active={streamerMode}
+      on:click={onToggleStreamer}
+      aria-label="Toggle Streamer Mode"
+      title="Streamer Mode"
+    >
+      <Radio size={16} />
     </button>
-    <button class="icon-btn panic-btn" on:click={onPanicReset} title="Panic Reset">
-      <AlertTriangle size={15} />
+    <button
+      class="icon-btn panic-btn"
+      on:click={onPanicReset}
+      aria-label="Panic Reset Audio Engine"
+      title="Panic Reset"
+    >
+      <AlertTriangle size={16} />
     </button>
-    <button class="icon-btn" on:click={onOpenSettings} title="Settings">
-      <Settings size={15} />
+    <button
+      class="icon-btn"
+      on:click={onOpenSettings}
+      aria-label="Open Settings"
+      title="Settings"
+    >
+      <Settings size={16} />
     </button>
   </div>
 </header>
@@ -65,32 +83,121 @@
     justify-content: space-between;
     height: 48px;
     padding: 0 16px;
-    background-color: #0d1117;
-    border-bottom: 1px solid #1f2937;
+    background-color: var(--color-surface-1);
+    border-bottom: 1px solid var(--color-border-default);
     user-select: none;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
   }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .logo-img { width: 26px; height: 26px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transition: transform 0.15s ease; }
-  .logo-img:hover { transform: scale(1.08); }
-  .app-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: #f8fafc; }
-  
-  .nav-tabs { display: flex; gap: 4px; }
-  .tab-btn {
-    display: flex; align-items: center; gap: 6px; padding: 6px 12px;
-    background: transparent; border: none; color: #64748b; font-size: 11px;
-    font-weight: 700; cursor: pointer; transition: all 0.1s; letter-spacing: 0.5px;
-  }
-  .tab-btn:hover { color: #cbd5e1; }
-  .tab-btn.active { color: #f8fafc; border-bottom: 2px solid #38bdf8; }
 
-  .actions { display: flex; gap: 8px; align-items: center; }
-  .game-badge { background: #064e3b; color: #34d399; font-size: 10px; font-weight: 700; padding: 4px 8px; text-transform: uppercase; border-radius: 2px; }
-  .icon-btn {
-    background: transparent; border: none; color: #64748b; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-  .icon-btn:hover { color: #f8fafc; }
-  .icon-btn.active { color: #c084fc; }
-  .panic-btn:hover { color: #ef4444; }
+  .logo-img {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-depth-sm);
+    transition: transform var(--transition-fast);
+  }
+  .logo-img:hover {
+    transform: scale(1.05);
+  }
+  .app-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--color-text-primary);
+  }
+
+  .nav-tabs {
+    display: flex;
+    height: 100%;
+    gap: 2px;
+  }
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+    letter-spacing: 0.5px;
+  }
+  .tab-btn:hover {
+    color: var(--color-text-secondary);
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+  .tab-btn.active {
+    color: var(--color-text-primary);
+    border-bottom: 2px solid var(--color-accent-brand);
+    background-color: rgba(255, 82, 0, 0.04);
+  }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .game-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-bright);
+    color: var(--color-accent-success);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    text-transform: uppercase;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+  }
+  .game-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-accent-success);
+  }
+  .game-name {
+    letter-spacing: 0.5px;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+  .icon-btn:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-3);
+    border-color: var(--color-border-default);
+  }
+  .icon-btn.active {
+    color: var(--color-accent-brand);
+    background-color: var(--color-accent-brand-subtle);
+    border-color: var(--color-accent-brand-border);
+  }
+  .panic-btn:hover {
+    color: var(--color-accent-danger);
+    background-color: var(--color-accent-danger-subtle);
+    border-color: var(--color-accent-danger);
+  }
 </style>

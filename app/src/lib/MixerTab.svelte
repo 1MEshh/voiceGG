@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter } from '../types';
   import { CHANNELS } from './theme';
-  import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, MoreVertical } from '@lucide/svelte';
+  import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic } from '@lucide/svelte';
 
   export let status: SystemStatus;
   export let micMonitorEnabled: boolean = false;
@@ -89,7 +89,12 @@
   <div class="device-header">
     <div class="device-col">
       <span class="label">PLAYBACK DEVICE</span>
-      <select class="master-select" value={status.config.preferred_output_device || 'default'} on:change={(e) => onSetDevice('sink', e.currentTarget.value)}>
+      <select
+        class="master-select"
+        aria-label="Playback Device Selector"
+        value={status.config.preferred_output_device || 'default'}
+        on:change={(e) => onSetDevice('sink', e.currentTarget.value)}
+      >
         <option value="default">Default Headphone Sink</option>
         {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'sink') as dev}
           <option value={dev.name}>{dev.description || dev.name}</option>
@@ -98,7 +103,12 @@
     </div>
     <div class="device-col">
       <span class="label">MICROPHONE</span>
-      <select class="master-select" value={status.config.preferred_input_device || 'default'} on:change={(e) => onSetDevice('source', e.currentTarget.value)}>
+      <select
+        class="master-select"
+        aria-label="Microphone Device Selector"
+        value={status.config.preferred_input_device || 'default'}
+        on:change={(e) => onSetDevice('source', e.currentTarget.value)}
+      >
         <option value="default">Default System Mic</option>
         {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
           <option value={dev.name}>{dev.description || dev.name}</option>
@@ -122,6 +132,7 @@
         class:is-dimmed={isDraggingAny && dragOverChannel !== ch && ch !== 'mic'}
         class:is-eligible={isDraggingAny && ch !== 'mic'}
         role="region"
+        aria-label="{info.label} Channel Strip"
         on:dragenter={(e) => handleDragEnter(e, ch)}
         on:dragover={(e) => handleDragOver(e, ch)}
         on:dragleave={(e) => handleDragLeave(e, ch)}
@@ -132,34 +143,62 @@
           <span class="channel-name">{info.label}</span>
         </div>
 
-        <button class="preset-btn" on:click={() => onOpenPresetBrowser(ch)}>
+        <button
+          class="preset-btn"
+          aria-label="Preset: {presetId}"
+          on:click={() => onOpenPresetBrowser(ch)}
+        >
           {presetId.replace(/^game_|^chat_|^media_|^mic_/, '').replace('_', ' ').toUpperCase()}
         </button>
 
         <div class="fader-container">
           <div class="fader-track">
-            <div class="fader-fill" style="height: {isMuted ? '0%' : vol}%; background-color: {info.defaultColor};"></div>
+            <div
+              class="fader-fill"
+              style="height: {isMuted ? '0%' : vol}%; background-color: {info.defaultColor};"
+            ></div>
           </div>
-          <div class="meter-track" title={`${meters?.[ch]?.peak_dbfs !== undefined ? meters[ch].peak_dbfs.toFixed(1) + ' dBFS' : '-∞ dBFS'}`}>
+          <div
+            class="meter-track"
+            title={`${meters?.[ch]?.peak_dbfs !== undefined ? meters[ch].peak_dbfs.toFixed(1) + ' dBFS' : '-∞ dBFS'}`}
+          >
             <div class="meter-fill" style="height: {getMeterPercent(ch)}%;"></div>
           </div>
-          <input type="range" class="vertical-slider" min="0" max="100" value={vol} on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))} />
+          <input
+            type="range"
+            aria-label="{info.label} Volume"
+            aria-valuenow={vol}
+            aria-valuemin="0"
+            aria-valuemax="100"
+            class="vertical-slider"
+            min="0"
+            max="100"
+            value={vol}
+            on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))}
+          />
         </div>
 
-        <div class="vol-text">{vol}%</div>
+        <div class="vol-text tabular-nums">{vol}%</div>
 
         <div class="strip-btn-row">
-          <button class="mute-btn" class:muted={isMuted} on:click={() => onSetMute(ch, !isMuted)} title={isMuted ? "Unmute" : "Mute"}>
-            {#if isMuted} <VolumeX size={14} /> {:else} <Volume2 size={14} /> {/if}
+          <button
+            class="mute-btn"
+            class:muted={isMuted}
+            on:click={() => onSetMute(ch, !isMuted)}
+            aria-label={isMuted ? `Unmute ${info.label}` : `Mute ${info.label}`}
+            title={isMuted ? "Unmute" : "Mute"}
+          >
+            {#if isMuted} <VolumeX size={15} /> {:else} <Volume2 size={15} /> {/if}
           </button>
           {#if ch === 'mic'}
             <button
               class="strip-monitor-btn"
               class:active={micMonitorEnabled}
               on:click={() => onSetMicMonitor?.(!micMonitorEnabled, micMonitorVolume)}
+              aria-label={micMonitorEnabled ? "Disable microphone loopback monitoring" : "Enable microphone loopback monitoring"}
               title={micMonitorEnabled ? "Mic Monitor: Active" : "Mic Monitor: Inactive"}
             >
-              <Headphones size={14} />
+              <Headphones size={15} />
             </button>
           {/if}
         </div>
@@ -172,6 +211,7 @@
                 role="button"
                 tabindex="0"
                 draggable="true"
+                aria-label="Route app {stream.binary_name || stream.app_name}"
                 on:dragstart={(e) => handleDragStart(e, stream)}
                 on:dragend={handleDragEnd}
               >
@@ -191,9 +231,20 @@
   </div>
 
   <div class="chatmix-bar">
-    <span class="chatmix-label">GAME ({100 - Math.max(0, status.config.chatmix)}%)</span>
-    <input type="range" min="-100" max="100" value={status.config.chatmix} on:input={(e) => onSetChatMix(Number(e.currentTarget.value))} class="chatmix-slider" />
-    <span class="chatmix-label chat">CHAT ({100 + Math.min(0, status.config.chatmix)}%)</span>
+    <span class="chatmix-label game tabular-nums">GAME ({100 - Math.max(0, status.config.chatmix)}%)</span>
+    <input
+      type="range"
+      aria-label="ChatMix Balance"
+      aria-valuenow={status.config.chatmix}
+      aria-valuemin="-100"
+      aria-valuemax="100"
+      min="-100"
+      max="100"
+      value={status.config.chatmix}
+      on:input={(e) => onSetChatMix(Number(e.currentTarget.value))}
+      class="chatmix-slider"
+    />
+    <span class="chatmix-label chat tabular-nums">CHAT ({100 + Math.min(0, status.config.chatmix)}%)</span>
   </div>
 </div>
 
@@ -202,179 +253,261 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--color-bg-app, #0B0E14);
+    background: var(--color-bg-app);
     padding: 20px;
     gap: 16px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
     overflow-y: auto;
   }
+
   .device-header {
     display: flex;
     gap: 16px;
-    background: var(--color-surface-1, #11151F);
+    background: var(--color-surface-1);
     padding: 14px 20px;
-    border: 1px solid var(--color-border-default, #262E40);
-    border-radius: var(--radius-lg, 8px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-depth-sm);
   }
-  .device-col { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .label { font-size: 10px; font-weight: 800; color: var(--color-text-secondary, #94A3B8); letter-spacing: 0.8px; text-transform: uppercase; }
+
+  .device-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .label {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
   .master-select {
-    background: var(--color-surface-3, #1D2333);
-    color: var(--color-text-primary, #F8FAFC);
-    border: 1px solid var(--color-border-default, #262E40);
+    background: var(--color-surface-3);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-default);
     padding: 8px 12px;
     font-size: 12px;
     font-weight: 500;
-    border-radius: var(--radius-sm, 4px);
+    font-family: var(--font-sans);
+    border-radius: var(--radius-sm);
     outline: none;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: border-color var(--transition-fast);
   }
-  .master-select:hover { border-color: var(--color-border-bright, #3B4660); }
-  
-  .channel-strips { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; flex: 1; min-height: 400px; }
+  .master-select:hover {
+    border-color: var(--color-border-bright);
+  }
+
+  .channel-strips {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    flex: 1;
+    min-height: 400px;
+  }
+
   .strip {
-    background: var(--color-surface-1, #11151F);
-    border: 1px solid var(--color-border-default, #262E40);
-    border-radius: var(--radius-md, 6px);
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 16px 12px;
-    transition: border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color var(--transition-fast), opacity var(--transition-fast), transform var(--transition-fast);
   }
-  .strip:hover { border-color: var(--color-border-bright, #3B4660); }
-  .strip.is-dimmed { opacity: 0.55; }
-  .strip.is-eligible { border-style: dashed; }
+  .strip:hover {
+    border-color: var(--color-border-bright);
+  }
+  .strip.is-dimmed {
+    opacity: 0.55;
+  }
+  .strip.is-eligible {
+    border-style: dashed;
+  }
   .strip.drag-over {
     border-style: solid;
-    border-color: #38BDF8;
-    background: var(--color-surface-hover, #252D40);
-    box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
-    transform: translateY(-3px);
+    border-color: var(--color-accent-brand);
+    background: var(--color-surface-hover);
+    box-shadow: var(--shadow-depth-md);
+    transform: translateY(-2px);
   }
+
   .empty-drop-hint {
     padding: 10px 4px;
-    border: 1px dashed var(--color-border-default, #262E40);
-    border-radius: 4px;
+    border: 1px dashed var(--color-border-default);
+    border-radius: var(--radius-sm);
     font-size: 9px;
     font-weight: 700;
-    color: var(--color-text-muted, #64748B);
+    color: var(--color-text-muted);
     text-align: center;
     letter-spacing: 0.5px;
     margin-top: 6px;
-    transition: all 0.15s ease;
+    transition: border-color var(--transition-fast), color var(--transition-fast);
   }
   .empty-drop-hint.highlight {
-    border-color: #38BDF8;
-    color: #38BDF8;
-    background: rgba(56, 189, 248, 0.1);
+    border-color: var(--color-accent-brand);
+    color: var(--color-accent-brand);
+    background: var(--color-accent-brand-subtle);
   }
-  
-  .strip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .channel-name { font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: var(--color-text-primary, #F8FAFC); text-transform: uppercase; }
-  
+
+  .strip-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .channel-name {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+  }
+
   .preset-btn {
     width: 100%;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-default, #262E40);
-    color: var(--color-text-secondary, #94A3B8);
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-secondary);
     font-size: 10px;
     font-weight: 700;
-    padding: 5px 8px;
-    border-radius: var(--radius-sm, 4px);
+    font-family: var(--font-sans);
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     margin-bottom: 16px;
     letter-spacing: 0.3px;
-    transition: all 0.15s ease;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   }
   .preset-btn:hover {
-    background: var(--color-surface-hover, #252D40);
-    color: #FFF;
-    border-color: var(--color-border-bright, #3B4660);
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-bright);
   }
-  
+
   .fader-container {
     position: relative;
     height: 180px;
-    width: 36px;
+    width: 44px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     margin-bottom: 12px;
   }
+
   .fader-track {
-    width: 10px;
+    width: 8px;
     height: 100%;
-    background: var(--color-surface-3, #1D2333);
-    border-radius: 5px;
-    border: 1px solid var(--color-border-default, #262E40);
+    background: var(--color-surface-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-default);
     overflow: hidden;
     display: flex;
     align-items: flex-end;
   }
+
+  /* Zero lag: thumb and fill track instantly without dragging latency */
   .fader-fill {
     width: 100%;
-    transition: height 0.08s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 -2px 10px var(--ch-color, #10B981);
+    transition: none;
   }
 
   .meter-track {
     width: 5px;
     height: 100%;
-    background: var(--color-surface-3, #1D2333);
-    border-radius: 3px;
-    border: 1px solid var(--color-border-default, #262E40);
+    background: var(--color-surface-3);
+    border-radius: 2px;
+    border: 1px solid var(--color-border-default);
     overflow: hidden;
     display: flex;
     align-items: flex-end;
   }
+
   .meter-fill {
     width: 100%;
-    background: linear-gradient(180deg, #EF4444 0%, #EAB308 35%, #10B981 100%);
-    transition: height 0.06s linear;
-    border-radius: 2px;
-    box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+    background: linear-gradient(to top, #10B981 0%, #10B981 70%, #F59E0B 85%, #EF4444 100%);
+    background-size: 100% 180px;
+    background-position: bottom;
+    transition: height 0.05s linear;
+    border-radius: 1px;
   }
-  
+
   .vertical-slider {
     position: absolute;
     width: 180px;
-    height: 28px;
+    height: 36px;
     transform: rotate(-90deg);
     appearance: none;
+    -webkit-appearance: none;
     background: transparent;
     outline: none;
     cursor: pointer;
     z-index: 2;
   }
-  
+
+  /* Sonar-authentic flat thumb: solid neutral-200 fill with 1px border and center accent indicator line */
   .vertical-slider::-webkit-slider-thumb {
     appearance: none;
-    width: 28px;
-    height: 14px;
-    background: linear-gradient(180deg, #F8FAFC 0%, #94A3B8 100%);
-    border-radius: 3px;
-    border: 1px solid #1E293B;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 28px;
+    background:
+      linear-gradient(to right,
+        var(--color-neutral-200) calc(50% - 1px),
+        var(--color-accent-brand) calc(50% - 1px),
+        var(--color-accent-brand) calc(50% + 1px),
+        var(--color-neutral-200) calc(50% + 1px)
+      );
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-bright);
     cursor: grab;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-    transition: all 0.12s ease;
+    box-shadow: var(--shadow-depth-sm);
+    transition: border-color var(--transition-fast);
   }
-  .vertical-slider:hover::-webkit-slider-thumb,
+  .vertical-slider:hover::-webkit-slider-thumb {
+    border-color: var(--color-accent-brand);
+  }
   .vertical-slider:active::-webkit-slider-thumb {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 0 14px var(--ch-color, #10B981);
-    border-color: var(--ch-color, #10B981);
     cursor: grabbing;
+    border-color: var(--color-accent-brand);
   }
-  
+
+  .vertical-slider::-moz-range-thumb {
+    width: 14px;
+    height: 28px;
+    background:
+      linear-gradient(to right,
+        var(--color-neutral-200) calc(50% - 1px),
+        var(--color-accent-brand) calc(50% - 1px),
+        var(--color-accent-brand) calc(50% + 1px),
+        var(--color-neutral-200) calc(50% + 1px)
+      );
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-bright);
+    cursor: grab;
+    box-shadow: var(--shadow-depth-sm);
+    transition: border-color var(--transition-fast);
+  }
+  .vertical-slider:hover::-moz-range-thumb {
+    border-color: var(--color-accent-brand);
+  }
+  .vertical-slider:active::-moz-range-thumb {
+    cursor: grabbing;
+    border-color: var(--color-accent-brand);
+  }
+
   .vol-text {
     font-size: 13px;
     font-weight: 700;
-    color: var(--color-text-primary, #F8FAFC);
-    font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-variant-numeric: var(--tabular-nums);
     margin-bottom: 8px;
     letter-spacing: -0.5px;
   }
@@ -386,128 +519,162 @@
     gap: 6px;
     margin-bottom: 16px;
   }
-  
+
+  /* 44px hit targets on primary interactive buttons */
   .mute-btn {
-    width: 36px;
-    height: 36px;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-default, #262E40);
-    color: var(--color-text-secondary, #94A3B8);
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-secondary);
     display: flex;
     justify-content: center;
     align-items: center;
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   }
   .mute-btn:hover {
-    background: var(--color-surface-hover, #252D40);
-    color: #FFF;
-    border-color: var(--color-border-bright, #3B4660);
-    transform: translateY(-1px);
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-bright);
   }
   .mute-btn.muted {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: #EF4444;
-    color: #EF4444;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+    background: var(--color-accent-danger-subtle);
+    border-color: var(--color-accent-danger);
+    color: var(--color-accent-danger);
   }
 
   .strip-monitor-btn {
-    width: 36px;
-    height: 36px;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-default, #262E40);
-    color: var(--color-text-secondary, #94A3B8);
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-secondary);
     display: flex;
     justify-content: center;
     align-items: center;
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   }
   .strip-monitor-btn:hover {
-    background: var(--color-surface-hover, #252D40);
-    color: #FFF;
-    border-color: var(--color-border-bright, #3B4660);
-    transform: translateY(-1px);
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-bright);
   }
   .strip-monitor-btn.active {
-    background: rgba(249, 115, 22, 0.18);
-    border-color: #F97316;
-    color: #F97316;
-    box-shadow: 0 0 12px rgba(249, 115, 22, 0.35);
+    background: var(--color-accent-brand-subtle);
+    border-color: var(--color-accent-brand);
+    color: var(--color-accent-brand);
   }
-  
+
   .apps-box {
     width: 100%;
     flex: 1;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-subtle, #1C2230);
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-subtle);
     padding: 6px;
     display: flex;
     flex-direction: column;
     gap: 4px;
     overflow-y: auto;
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm);
     min-height: 90px;
   }
+
   .app-chip {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: var(--color-surface-1, #11151F);
-    border: 1px solid var(--color-border-default, #262E40);
-    padding: 5px 8px;
-    border-radius: var(--radius-sm, 4px);
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border-default);
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
     font-size: 10px;
     font-weight: 600;
-    color: var(--color-text-primary, #F8FAFC);
+    color: var(--color-text-primary);
     cursor: grab;
-    transition: all 0.15s ease;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
   }
   .app-chip:hover {
-    border-color: var(--color-border-bright, #3B4660);
-    background: var(--color-surface-hover, #252D40);
-    transform: translateY(-1px);
+    border-color: var(--color-border-bright);
+    background: var(--color-surface-hover);
   }
-  .app-chip:active { cursor: grabbing; }
-  .chip-color { width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
-  
+  .app-chip:active {
+    cursor: grabbing;
+  }
+  .chip-color {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
   .chatmix-bar {
     display: flex;
     align-items: center;
     gap: 16px;
-    background: var(--color-surface-1, #11151F);
+    background: var(--color-surface-1);
     padding: 14px 24px;
-    border: 1px solid var(--color-border-default, #262E40);
-    border-radius: var(--radius-lg, 8px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-depth-sm);
   }
-  .chatmix-label { font-size: 11px; font-weight: 800; color: #10B981; font-family: 'Inter', sans-serif; letter-spacing: 0.5px; }
-  .chatmix-label.chat { color: #0EA5E9; }
+
+  .chatmix-label {
+    font-size: 11px;
+    font-weight: 800;
+    font-family: var(--font-sans);
+    letter-spacing: 0.5px;
+  }
+  .chatmix-label.game {
+    color: var(--color-channel-game);
+  }
+  .chatmix-label.chat {
+    color: var(--color-channel-chat);
+  }
+
   .chatmix-slider {
     flex: 1;
     height: 6px;
-    background: var(--color-surface-3, #1D2333);
-    border: 1px solid var(--color-border-default, #262E40);
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
     outline: none;
     appearance: none;
-    border-radius: 3px;
+    -webkit-appearance: none;
+    border-radius: var(--radius-sm);
   }
   .chatmix-slider::-webkit-slider-thumb {
     appearance: none;
-    width: 16px;
-    height: 22px;
-    background: linear-gradient(180deg, #F8FAFC 0%, #94A3B8 100%);
-    border: 1px solid #1E293B;
-    border-radius: 3px;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 24px;
+    background: var(--color-neutral-200);
+    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-    transition: all 0.15s ease;
+    box-shadow: var(--shadow-depth-sm);
+    transition: border-color var(--transition-fast);
   }
-  .chatmix-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+  .chatmix-slider:hover::-webkit-slider-thumb {
+    border-color: var(--color-accent-brand);
+  }
+
+  .chatmix-slider::-moz-range-thumb {
+    width: 18px;
+    height: 24px;
+    background: var(--color-neutral-200);
+    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    box-shadow: var(--shadow-depth-sm);
+    transition: border-color var(--transition-fast);
+  }
+  .chatmix-slider:hover::-moz-range-thumb {
+    border-color: var(--color-accent-brand);
   }
 </style>

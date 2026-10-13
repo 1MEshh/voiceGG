@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ChannelId, SystemStatus } from '../types';
+  import type { SystemStatus } from '../types';
   import { CHANNELS } from './theme';
   import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu } from '@lucide/svelte';
 
@@ -23,16 +23,17 @@
       class="modal-window"
       role="dialog"
       aria-modal="true"
+      aria-label="Settings and Preferences Modal"
       tabindex="-1"
       on:click|stopPropagation
       on:keydown|stopPropagation
     >
       <div class="modal-header">
         <div class="header-left">
-          <Settings size={18} color="#94a3b8" />
+          <Settings size={18} color="var(--color-accent-brand)" />
           <span class="modal-title">SETTINGS & PREFERENCES</span>
         </div>
-        <button class="close-btn" on:click={onClose}>
+        <button class="close-btn" aria-label="Close Settings" on:click={onClose}>
           <X size={18} />
         </button>
       </div>
@@ -41,7 +42,7 @@
         <!-- Audio Safety Section -->
         <div class="setting-section">
           <div class="section-title-row">
-            <ShieldCheck size={16} color="#22c55e" />
+            <ShieldCheck size={16} color="var(--color-accent-success)" />
             <span class="section-title">AUDIO ENGINE & SAFETY</span>
           </div>
           <div class="setting-card">
@@ -56,7 +57,7 @@
         <!-- Auto Game Detection Section -->
         <div class="setting-section">
           <div class="section-title-row">
-            <Cpu size={16} color="#38bdf8" />
+            <Cpu size={16} color="var(--color-accent-info)" />
             <span class="section-title">GAMING INTEGRATION</span>
           </div>
           <div class="setting-card">
@@ -67,6 +68,7 @@
             <label class="toggle-switch">
               <input
                 type="checkbox"
+                aria-label="Toggle Automatic Game Process Detection"
                 bind:checked={autoDetect}
                 on:change={() => onToggleAutoDetect(autoDetect)}
               />
@@ -78,14 +80,19 @@
         <!-- Custom Channel Colors -->
         <div class="setting-section">
           <div class="section-title-row">
-            <Palette size={16} color="#ec4899" />
+            <Palette size={16} color="var(--color-channel-media)" />
             <span class="section-title">CHANNEL ACCENT COLORS</span>
           </div>
           <div class="color-pickers-grid">
             {#each Object.entries(CHANNELS) as [id, info]}
               <div class="color-item">
                 <span class="color-label">{info.label}</span>
-                <input type="color" value={info.defaultColor} class="color-input" />
+                <input
+                  type="color"
+                  aria-label="Accent color for {info.label}"
+                  value={info.defaultColor}
+                  class="color-input"
+                />
               </div>
             {/each}
           </div>
@@ -94,7 +101,7 @@
         <!-- Emergency Reset -->
         <div class="setting-section danger-section">
           <div class="section-title-row">
-            <AlertTriangle size={16} color="#ef4444" />
+            <AlertTriangle size={16} color="var(--color-accent-danger)" />
             <span class="section-title text-red">EMERGENCY RESTORE</span>
           </div>
           <div class="danger-card">
@@ -102,7 +109,11 @@
               <span class="card-label">Reset Audio Graph</span>
               <span class="card-desc">Unloads all VoiceGG virtual devices and immediately restores your original physical sinks and sources.</span>
             </div>
-            <button class="danger-btn" on:click={onPanicReset}>
+            <button
+              class="danger-btn"
+              aria-label="Restore Audio Defaults"
+              on:click={onPanicReset}
+            >
               RESTORE DEFAULTS
             </button>
           </div>
@@ -116,8 +127,8 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(4px);
+    background: rgba(7, 9, 13, 0.78);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -127,14 +138,15 @@
   .modal-window {
     width: 650px;
     max-height: 85vh;
-    background: #14181f;
-    border: 1px solid #283344;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-depth-lg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     user-select: none;
+    font-family: var(--font-sans);
   }
 
   .modal-header {
@@ -142,8 +154,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    background: #181e28;
-    border-bottom: 1px solid #252f3e;
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-border-default);
   }
 
   .header-left {
@@ -153,21 +165,29 @@
   }
 
   .modal-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-text-primary);
     letter-spacing: 0.5px;
   }
 
   .close-btn {
     background: transparent;
-    border: none;
-    color: #94a3b8;
+    border: 1px solid transparent;
+    color: var(--color-text-secondary);
     cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
   }
-
   .close-btn:hover {
-    color: #f8fafc;
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-3);
+    border-color: var(--color-border-bright);
   }
 
   .modal-body {
@@ -192,20 +212,20 @@
 
   .section-title {
     font-size: 11px;
-    font-weight: 700;
-    color: #94a3b8;
+    font-weight: 800;
+    color: var(--color-text-secondary);
     letter-spacing: 0.5px;
   }
 
   .text-red {
-    color: #ef4444;
+    color: var(--color-accent-danger);
   }
 
   .setting-card, .danger-card {
-    background: #181d26;
-    border: 1px solid #26303f;
-    border-radius: 8px;
-    padding: 12px 16px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -213,41 +233,41 @@
   }
 
   .danger-card {
-    border-color: #ef444444;
-    background: #201316;
+    border-color: var(--color-accent-danger);
+    background: var(--color-accent-danger-subtle);
   }
 
   .card-left {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }
 
   .card-label {
     font-size: 13px;
     font-weight: 700;
-    color: #f1f5f9;
+    color: var(--color-text-primary);
   }
 
   .card-desc {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--color-text-secondary);
     line-height: 1.4;
   }
 
   .badge {
     padding: 4px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 10px;
     font-weight: 700;
-    font-family: monospace;
+    font-family: var(--font-mono);
     white-space: nowrap;
   }
 
   .active-badge {
-    background: #22c55e22;
-    border: 1px solid #22c55e66;
-    color: #4ade80;
+    background: var(--color-accent-success-subtle);
+    border: 1px solid var(--color-accent-success);
+    color: var(--color-accent-success);
   }
 
   .toggle-switch {
@@ -267,12 +287,10 @@
   .toggle-slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #242c38;
-    transition: .2s;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--color-surface-3);
+    border: 1px solid var(--color-border-default);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
     border-radius: 20px;
   }
 
@@ -281,19 +299,23 @@
     content: "";
     height: 14px;
     width: 14px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .2s;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--color-neutral-200);
+    border: 1px solid var(--color-border-bright);
+    transition: transform var(--transition-fast);
     border-radius: 50%;
   }
 
   input:checked + .toggle-slider {
-    background-color: #38bdf8;
+    background-color: var(--color-accent-brand-subtle);
+    border-color: var(--color-accent-brand);
   }
 
   input:checked + .toggle-slider:before {
     transform: translateX(16px);
+    background-color: var(--color-accent-brand);
+    border-color: var(--color-accent-brand);
   }
 
   .color-pickers-grid {
@@ -303,9 +325,9 @@
   }
 
   .color-item {
-    background: #181d26;
-    border: 1px solid #26303f;
-    border-radius: 6px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     padding: 8px 12px;
     display: flex;
     align-items: center;
@@ -315,32 +337,34 @@
   .color-label {
     font-size: 11px;
     font-weight: 700;
-    color: #cbd5e1;
+    color: var(--color-text-secondary);
   }
 
   .color-input {
-    border: none;
+    border: 1px solid var(--color-border-bright);
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     background: transparent;
   }
 
   .danger-btn {
-    padding: 7px 14px;
-    background: #ef4444;
+    padding: 8px 16px;
+    min-height: 36px;
+    background: var(--color-accent-danger);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: white;
     font-size: 11px;
     font-weight: 700;
+    font-family: var(--font-sans);
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.15s ease;
+    transition: background-color var(--transition-fast);
   }
 
   .danger-btn:hover {
-    background: #dc2626;
+    background: #DC2626;
   }
 </style>
