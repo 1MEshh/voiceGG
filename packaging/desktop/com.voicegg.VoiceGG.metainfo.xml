@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.voicegg.VoiceGG</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>VoiceGG</name>
+  <summary>The SteelSeries Sonar &amp; SteelSeries GG alternative for Linux</summary>
+  <description>
+    <p>
+      VoiceGG is a lightweight, zero-latency gaming audio router, 10-band parametric equalizer,
+      and ChatMix controller engineered natively for Linux and PipeWire.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Virtual dedicated channels for Master, Game, Chat, Media, Aux, and Microphone.</li>
+      <li>Hardware-grade ChatMix slider to balance game sound against voice communications.</li>
+      <li>10-band parametric equalizer with calibrated competitive presets for CS2, Apex Legends, Valorant, and more.</li>
+      <li>Studio-grade microphone processing with zero-latency live voice monitoring (sidetone), RNNoise AI noise remover, gate, and dynamic compressor.</li>
+      <li>Minimal resource footprint (~6 MB RAM, 0.0% idle CPU) and 100% offline local privacy with zero telemetry.</li>
+      <li>Full Arabic (RTL) localization with Thmanyah typography.</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.voicegg.VoiceGG.desktop</launchable>
+  <url type="homepage">https://github.com/1MEshh/voiceGG</url>
+  <url type="bugtracker">https://github.com/1MEshh/voiceGG/issues</url>
+  <developer_name>1MEshh</developer_name>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Mixer</category>
+  </categories>
+  <keywords>
+    <keyword>steelseries</keyword>
+    <keyword>sonar</keyword>
+    <keyword>chatmix</keyword>
+    <keyword>pipewire</keyword>
+    <keyword>equalizer</keyword>
+    <keyword>sidetone</keyword>
+    <keyword>gaming</keyword>
+  </keywords>
+  <releases>
+    <release version="2.0.0" date="2026-10-13">
+      <description>
+        <p>VoiceGG 2.0 release introducing live microphone monitoring, native PipeWire filter chains, authentic Thmanyah design system, and full Arabic RTL localization.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>
