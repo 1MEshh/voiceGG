@@ -21,6 +21,34 @@ async fn test_client_server_lifecycle() {
                         IpcResponse::Success
                     }
                 }
+                IpcRequest::SetMicMonitor { enabled, volume } => {
+                    if enabled && volume > 0 {
+                        IpcResponse::Success
+                    } else {
+                        IpcResponse::Error("Invalid monitor params".into())
+                    }
+                }
+                IpcRequest::GetCapabilities => {
+                    IpcResponse::Capabilities(voicegg_core::PluginCapabilities::default())
+                }
+                IpcRequest::GetMeters => {
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        ChannelId::Mic,
+                        voicegg_ipc::ChannelMeter {
+                            peak_dbfs: -18.5,
+                            rms_dbfs: -24.0,
+                        },
+                    );
+                    IpcResponse::Meters(map)
+                }
+                IpcRequest::SetLanguage { language } => {
+                    if language == "ar" || language == "en" {
+                        IpcResponse::Success
+                    } else {
+                        IpcResponse::Error("Unsupported language".into())
+                    }
+                }
                 _ => IpcResponse::Success,
             }))
             .await
@@ -41,6 +69,48 @@ async fn test_client_server_lifecycle() {
         })
         .await
         .expect("Request failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    // Test mic monitor request
+    let res = client
+        .request(IpcRequest::SetMicMonitor {
+            enabled: true,
+            volume: 80,
+        })
+        .await
+        .expect("Mic monitor request failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    // Test capabilities request
+    let res = client
+        .request(IpcRequest::GetCapabilities)
+        .await
+        .expect("Capabilities request failed");
+    match res {
+        IpcResponse::Capabilities(caps) => assert!(caps.biquad_eq),
+        _ => panic!("Expected Capabilities response"),
+    }
+
+    // Test meters request
+    let res = client
+        .request(IpcRequest::GetMeters)
+        .await
+        .expect("Meters request failed");
+    match res {
+        IpcResponse::Meters(meters) => {
+            let mic_meter = meters.get(&ChannelId::Mic).expect("Mic meter missing");
+            assert!((mic_meter.peak_dbfs - (-18.5)).abs() < 1e-4);
+        }
+        _ => panic!("Expected Meters response"),
+    }
+
+    // Test set language request
+    let res = client
+        .request(IpcRequest::SetLanguage {
+            language: "ar".to_string(),
+        })
+        .await
+        .expect("SetLanguage request failed");
     assert_eq!(res, IpcResponse::Success);
 
     // Test shutdown request

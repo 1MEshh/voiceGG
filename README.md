@@ -71,12 +71,13 @@ Interactive, responsive parametric EQ graph with draggable frequency nodes. Incl
 
 ---
 
-### 3. Microphone DSP Suite & ClearCast AI
-Studio-grade microphone processing suite featuring:
-- **ClearCast AI Noise Cancellation**: Neural network background removal that silences mechanical keyboards and fan noise.
-- **Noise Gate**: Instant threshold gating (`● GATE OPEN` visual status) to mute ambient room reflections.
-- **Smart Voice Compressor**: Broadcast-grade dynamic compression with active gain reduction monitoring.
-- **Mic Test Loopback**: Real-time 5-second countdown recording to hear your tuned voice before joining Discord.
+### 3. Microphone DSP Suite & Live Monitoring
+Studio-grade microphone processing suite running directly inside the PipeWire audio graph:
+- **Live Voice Monitoring**: Zero-latency hardware loopback with feedback safety guard and dedicated volume slider.
+- **AI Noise Remover**: Deep neural background noise cancellation via native RNNoise (`noise-suppression-for-voice`) with honest plugin availability detection.
+- **Noise Gate**: Calibrated gating with live `● GATE OPEN` / `○ GATE CLOSED` indicator driven by real peak metering.
+- **Dynamic Compressor**: Broadcast dynamic range control with live real-time gain reduction monitoring.
+- **Arabic & RTL Localization**: Full native Arabic support with authentic pro-audio terminology and custom Thmanyah (ثمانية) typography.
 
 <p align="center">
   <img src="docs/screenshots/mic-dsp.png" alt="VoiceGG Microphone DSP Suite" width="100%" />
@@ -96,8 +97,8 @@ Studio-grade microphone processing suite featuring:
 | **Drag & Drop App Routing** | **Yes (Automatic & Persistent)** | Yes | No (Manual wire links) |
 | **ChatMix Balance** | **Yes (Hotkeys, GUI & Waybar module)** | Yes (SteelSeries hardware or GUI) | No |
 | **10-Band Parametric EQ** | **Yes (Interactive Canvas + Presets)** | Yes | Requires third-party plugins |
-| **ClearCast AI Noise Suppression** | **Yes (Integrated RNNoise)** | Yes (Cloud/Local proprietary) | Requires EasyEffects setup |
-| **Waybar Status Bar Integration** | **Yes (Official Custom Module)** | N/A | No |
+| **Live Voice Monitoring** | **Yes (Feedback-safe loopback + volume control)** | Yes | Manual loopback creation |
+| **Arabic & RTL Localization** | **Yes (Full RTL layout + Thmanyah typography)** | Partial / LTR only | No |
 | **Emergency Audio Reset (Panic)** | **Yes (1-click restore to hardware defaults)** | Reinstall driver | Restart pipewire |
 
 ---

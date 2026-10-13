@@ -64,6 +64,37 @@ if [ ${#NEEDED_PKGS[@]} -gt 0 ]; then
     fi
 fi
 
+# 3b. Optional DSP Plugins & Font Guidance
+echo "==> Checking optional audio DSP plugins..."
+HAS_RNNOISE=0
+if [ -f "/usr/lib/ladspa/librnnoise_ladspa.so" ] || [ -f "/usr/lib64/ladspa/librnnoise_ladspa.so" ]; then
+    HAS_RNNOISE=1
+fi
+
+if [ "$HAS_RNNOISE" -eq 0 ]; then
+    echo "  [INFO] librnnoise_ladspa.so was not found."
+    echo "         To enable AI Noise Cancellation in VoiceGG, install 'noise-suppression-for-voice'."
+    if command -v yay > /dev/null 2>&1; then
+        read -r -p "         Install 'noise-suppression-for-voice' via yay now? [y/N] " rn_res </dev/tty || rn_res="n"
+        if [[ "$rn_res" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            yay -S --needed noise-suppression-for-voice || true
+        fi
+    elif command -v paru > /dev/null 2>&1; then
+        read -r -p "         Install 'noise-suppression-for-voice' via paru now? [y/N] " rn_res </dev/tty || rn_res="n"
+        if [[ "$rn_res" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            paru -S --needed noise-suppression-for-voice || true
+        fi
+    else
+        echo "         (Install via your AUR helper: yay -S noise-suppression-for-voice)"
+    fi
+fi
+
+if ! fc-list : family 2>/dev/null | grep -iq "thmanyah"; then
+    echo "  [INFO] Thmanyah (ثمانية) typography not detected."
+    echo "         To use the official Thmanyah font, download it from https://font.thmanyah.com/"
+    echo "         and extract to ~/.local/share/fonts/. VoiceGG will use it automatically."
+fi
+
 # 4. Determine repository source (local or clone into temporary directory)
 TEMP_DIR=""
 cleanup() {
