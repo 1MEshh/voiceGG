@@ -109,6 +109,12 @@
     onChangePreset(currentPreset);
   }
 
+  let micInputGain = 0;
+  function handleInputGainChange(val: number) {
+    micInputGain = val;
+    onChangePreset(currentPreset);
+  }
+
   $: micPresets = allPresets.filter(p => p.category === 'mic');
 </script>
 
@@ -293,6 +299,23 @@
             class="tone-slider"
           />
           <span class="tone-val tabular-nums">{(currentPreset.eq.treble_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.treble_db ?? 0} dB</span>
+        </div>
+        <div class="tone-slider-group">
+          <span class="tone-name">{$t('mic.input_gain')}</span>
+          <input
+            type="range"
+            aria-label={$t('mic.input_gain')}
+            aria-valuenow={micInputGain}
+            aria-valuemin="-12"
+            aria-valuemax="12"
+            min="-12"
+            max="12"
+            step="0.5"
+            value={micInputGain}
+            on:input={(e) => handleInputGainChange(Number(e.currentTarget.value))}
+            class="tone-slider"
+          />
+          <span class="tone-val tabular-nums">{micInputGain > 0 ? '+' : ''}{micInputGain} dB</span>
         </div>
       </div>
     </div>

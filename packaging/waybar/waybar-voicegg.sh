@@ -19,17 +19,19 @@ if command -v jq >/dev/null 2>&1; then
     MASTER_VOL=$(echo "$STATUS" | jq -r '.config.volumes.master // 100')
     MASTER_MUTED=$(echo "$STATUS" | jq -r '.config.muted.master // false')
     MIC_MUTED=$(echo "$STATUS" | jq -r '.config.muted.mic // false')
+    MIC_MONITOR=$(echo "$STATUS" | jq -r '.mic_monitor_enabled // false')
     GAME_NAME=$(echo "$STATUS" | jq -r '.active_game // empty')
 else
     # Python fallback if jq is not installed
-    read -r MASTER_VOL MASTER_MUTED MIC_MUTED GAME_NAME <<< $(python3 -c "
+    read -r MASTER_VOL MASTER_MUTED MIC_MUTED MIC_MONITOR GAME_NAME <<< $(python3 -c "
 import sys, json
 d = json.loads(sys.argv[1])
 v = d.get('config', {}).get('volumes', {}).get('master', 100)
 mm = d.get('config', {}).get('muted', {}).get('master', False)
 micm = d.get('config', {}).get('muted', {}).get('mic', False)
+mon = d.get('mic_monitor_enabled', False)
 g = d.get('active_game') or ''
-print(f'{v} {mm} {micm} {g}')
+print(f'{v} {mm} {micm} {mon} {g}')
 " "$STATUS")
 fi
 
@@ -49,11 +51,14 @@ else
 fi
 
 DISPLAY_TEXT="${VOL_ICON} ${VOL_TEXT} | ${MIC_ICON}"
+if [ "$MIC_MONITOR" = "true" ]; then
+    DISPLAY_TEXT="${DISPLAY_TEXT} 󰋋"
+fi
 if [ -n "$GAME_NAME" ]; then
     DISPLAY_TEXT="${DISPLAY_TEXT} [󰊴 ${GAME_NAME}]"
 fi
 
-TOOLTIP="VoiceGG — Sonar for Linux\nMaster Volume: ${MASTER_VOL}%\nMaster Muted: ${MASTER_MUTED}\nMic Muted: ${MIC_MUTED}"
+TOOLTIP="VoiceGG — Sonar for Linux\nMaster Volume: ${MASTER_VOL}%\nMaster Muted: ${MASTER_MUTED}\nMic Muted: ${MIC_MUTED}\nMic Monitor: $([ "$MIC_MONITOR" = "true" ] && echo "ON" || echo "OFF")"
 if [ -n "$GAME_NAME" ]; then
     TOOLTIP="${TOOLTIP}\nAuto-Detected Game: ${GAME_NAME}"
 fi

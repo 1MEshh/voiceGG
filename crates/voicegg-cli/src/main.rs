@@ -63,6 +63,15 @@ enum CtlAction {
         /// Target channel.
         channel: ChannelId,
     },
+    /// Toggle or adjust Live Voice Monitoring.
+    Monitor {
+        /// Action: toggle, on, off.
+        #[arg(default_value = "toggle")]
+        state: String,
+        /// Volume in percent (0 - 100).
+        #[arg(long, default_value_t = 50)]
+        volume: u8,
+    },
 }
 
 #[tokio::main]
@@ -194,6 +203,35 @@ async fn main() -> Result<()> {
                 {
                     IpcResponse::Success => {
                         println!("Application '{}' routed to {}", binary, channel);
+                    }
+                    IpcResponse::Error(e) => eprintln!("Error: {e}"),
+                    _ => (),
+                }
+            }
+            CtlAction::Monitor { state, volume } => {
+                let status = match client.request(IpcRequest::GetStatus).await? {
+                    IpcResponse::Status(s) => *s,
+                    _ => bail!("Failed to get current status"),
+                };
+                let current = status.mic_monitor_enabled;
+                let target = match state.to_lowercase().as_str() {
+                    "toggle" => !current,
+                    "on" | "1" | "true" => true,
+                    "off" | "0" | "false" => false,
+                    _ => bail!("Invalid state: use 'toggle', 'on', or 'off'"),
+                };
+                match client
+                    .request(IpcRequest::SetMicMonitor {
+                        enabled: target,
+                        volume,
+                    })
+                    .await?
+                {
+                    IpcResponse::Success => {
+                        println!(
+                            "Mic Monitoring is now {}",
+                            if target { "ON" } else { "OFF" }
+                        );
                     }
                     IpcResponse::Error(e) => eprintln!("Error: {e}"),
                     _ => (),

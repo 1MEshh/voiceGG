@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { SystemStatus } from '../types';
   import { CHANNELS } from './theme';
-  import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu, Globe } from '@lucide/svelte';
-  import { t, locale, setLanguage } from './i18n';
+  import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu, Globe, Hash } from '@lucide/svelte';
+  import { t, locale, numerals, setLanguage } from './i18n';
 
   export let isOpen: boolean;
   export let status: SystemStatus;
@@ -69,6 +69,33 @@
                 on:click={() => setLanguage('ar')}
               >
                 {$t('settings.arabic')}
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-card">
+            <div class="card-left">
+              <span class="card-label">{$t('settings.numerals')}</span>
+              <span class="card-desc">{$t('settings.numerals_desc')}</span>
+            </div>
+            <div class="lang-selector">
+              <button
+                type="button"
+                class="lang-pill"
+                class:active={$numerals === 'western'}
+                aria-pressed={$numerals === 'western'}
+                on:click={() => numerals.set('western')}
+              >
+                {$t('settings.numerals_western')}
+              </button>
+              <button
+                type="button"
+                class="lang-pill"
+                class:active={$numerals === 'eastern'}
+                aria-pressed={$numerals === 'eastern'}
+                on:click={() => numerals.set('eastern')}
+              >
+                {$t('settings.numerals_eastern')}
               </button>
             </div>
           </div>

@@ -134,6 +134,14 @@
   }
 
   async function handleRouteApp(binaryName: string, targetChannel: ChannelId) {
+    // Instant optimistic update
+    const stream = status.streams.find(
+      s => s.binary_name.toLowerCase() === binaryName.toLowerCase() || s.app_name.toLowerCase() === binaryName.toLowerCase()
+    );
+    if (stream) {
+      stream.current_channel = targetChannel;
+      status = { ...status };
+    }
     try {
       await invoke('route_app', { binaryName, targetChannel });
       await fetchStatus();

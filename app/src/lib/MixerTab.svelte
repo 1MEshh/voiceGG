@@ -77,7 +77,10 @@
       if (data) {
         try {
           const stream = JSON.parse(data) as ActiveStream;
-          onRouteApp(stream.binary_name, targetChannel);
+          const targetName = stream.binary_name || stream.app_name;
+          if (targetName) {
+            onRouteApp(targetName, targetChannel);
+          }
         } catch (err) {
           console.error("Failed to parse dragged stream", err);
         }

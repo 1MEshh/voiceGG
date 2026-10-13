@@ -108,7 +108,9 @@
     "off": "OFF (0%)",
     "low": "LOW (40%)",
     "balanced": "BALANCED (65%)",
-    "max": "MAX (90%)"
+    "max": "MAX (90%)",
+    "input_gain": "INPUT GAIN",
+    "input_gain_desc": "Pre-chain microphone preamp gain calibration."
   },
   "channel_tab": {
     "browse_presets": "BROWSE PRESETS",
@@ -168,6 +170,10 @@
     "language_desc": "Select your preferred language. Layout adjusts automatically.",
     "english": "English",
     "arabic": "العربية",
+    "numerals": "Numerals Format",
+    "numerals_desc": "Display numbers in Western (123) or Eastern Arabic (١٢٣) digits.",
+    "numerals_western": "Western (123)",
+    "numerals_eastern": "Arabic-Indic (١٢٣)",
     "audio_safety": "AUDIO ENGINE & SAFETY",
     "limiter_title": "True-Peak Hard Limiter",
     "limiter_desc": "Non-bypassable −6 dBFS safety ceiling on Master output to protect hearing and hardware.",

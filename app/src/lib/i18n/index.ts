@@ -4,8 +4,18 @@ import en from './en.json';
 import ar from './ar.json';
 
 export type Locale = 'en' | 'ar';
+export type NumeralSystem = 'western' | 'eastern';
 
 export const locale = writable<Locale>('en');
+export const numerals = writable<NumeralSystem>('western');
+
+const easternDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+
+export function formatNumber(val: number | string, system: NumeralSystem = 'western'): string {
+  const str = String(val);
+  if (system === 'western') return str;
+  return str.replace(/[0-9]/g, (d) => easternDigits[parseInt(d, 10)]);
+}
 
 const dictionaries: Record<Locale, Record<string, any>> = {
   en,
