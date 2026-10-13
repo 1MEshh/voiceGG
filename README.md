@@ -1,27 +1,33 @@
 # VoiceGG — The SteelSeries Sonar & SteelSeries GG Alternative for Linux
 
 <p align="center">
-  <img src="packaging/icons/voicegg.svg" alt="VoiceGG Logo" width="112" height="112" />
+  <img src="packaging/icons/voicegg.svg" alt="VoiceGG Logo" width="120" height="120" />
 </p>
 
 <p align="center">
-  <b>The lightweight, zero-latency gaming audio router, 10-band parametric equalizer, and ChatMix controller for Linux & PipeWire.</b>
+  <b>The ultra-fast, zero-latency gaming audio router, 10-band parametric equalizer, and ChatMix controller for Linux & PipeWire.</b>
   <br />
-  <i>The authentic SteelSeries Sonar alternative built natively for Arch Linux, Hyprland, Sway, KDE, and GNOME.</i>
+  <i>The genuine SteelSeries Sonar alternative engineered in Rust for Arch Linux, Hyprland, Sway, KDE Plasma, and GNOME.</i>
 </p>
 
 <p align="center">
+  <a href="https://github.com/1MEshh/voiceGG/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/Release-v2.0.0%20(Sonar%20Edition)-FF5200?style=for-the-badge&logo=rocket" alt="Release 2.0.0" /></a>
   <a href="https://github.com/1MEshh/voiceGG"><img src="https://img.shields.io/badge/SteelSeries%20Sonar-Linux%20Alternative-FF5200?style=for-the-badge&logo=linux&logoColor=white" alt="SteelSeries Sonar Alternative" /></a>
-  <a href="https://github.com/1MEshh/voiceGG/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/1MEshh/voiceGG/ci.yml?branch=main&label=CI&style=for-the-badge" alt="CI Status" /></a>
-  <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust" alt="Rust" />
-  <img src="https://img.shields.io/badge/Audio-PipeWire-blue?style=for-the-badge" alt="PipeWire" />
+  <img src="https://img.shields.io/badge/Language-Rust%202021-orange?style=for-the-badge&logo=rust" alt="Rust" />
+  <img src="https://img.shields.io/badge/Audio%20Server-PipeWire%20Native-blue?style=for-the-badge&logo=buffer" alt="PipeWire Native" />
+  <img src="https://img.shields.io/badge/GUI-Tauri%20v2%20%2B%20Svelte%205-FF3E00?style=for-the-badge&logo=svelte" alt="Tauri + Svelte" />
   <img src="https://img.shields.io/badge/RAM%20Idle-~6.1%20MB-success?style=for-the-badge" alt="6MB RAM" />
+  <img src="https://img.shields.io/badge/Telemetry-0%25%20(Offline%20Only)-brightgreen?style=for-the-badge" alt="Zero Telemetry" />
   <img src="https://img.shields.io/badge/License-GPLv3-green?style=for-the-badge" alt="GPLv3" />
+</p>
+
+<p align="center">
+  <b>Language:</b> <a href="README.md">English</a> | <a href="README.ar.md">العربية (Arabic)</a>
 </p>
 
 ---
 
-## Quick Install (Arch Linux / Any Distro with PipeWire)
+## ⚡ Quick Install (Arch Linux / Any Distro with PipeWire)
 
 Run this single command in your terminal to build and install VoiceGG rootlessly to `~/.local/bin`:
 
@@ -30,24 +36,34 @@ curl -fsSL https://raw.githubusercontent.com/1MEshh/voiceGG/main/install.sh | ba
 ```
 
 > [!TIP]
-> Launch anytime from your application runner (**Rofi**, **Wofi**, **dmenu**) or run `voicegg-launcher` in terminal.
+> Launch anytime from your application runner (**Rofi**, **Wofi**, **tofi**, **dmenu**) or run `voicegg-launcher` in terminal.
 
 ---
 
-## Why VoiceGG? 
+## 📖 The Story Behind VoiceGG
 
-When I made the full switch from Windows to Linux for gaming and other stuff, there was one piece of software I couldn't live without: **SteelSeries Sonar / SteelSeries GG**.
+When I wiped Windows and made the full jump to **Arch Linux with Hyprland** for my daily gaming and workstation setup, there was one piece of proprietary Windows software I genuinely missed: **SteelSeries Sonar (SteelSeries GG)**.
 
-Having dedicated virtual audio channels for **Game**, **Chat**, and **Media**, separate volume controls for Discord and Counter-Strike, a hardware/software **ChatMix** slider to instantly quiet noisy teammates in clutch moments, and a **10-band parametric EQ** tuned for enemy footsteps was essential for competitive gaming.
+For years on Windows, my entire competitive gaming flow revolved around Sonar:
+1. Having separate virtual channels for **Game**, **Chat**, and **Media** so I could balance game audio against Discord on the fly.
+2. The physical **ChatMix** dial to immediately silence loud teammates during clutch rounds in *Counter-Strike* and *Apex Legends*.
+3. A tuned **10-band parametric equalizer** with footstep isolation profiles that made subtle enemy movements unmistakable.
+4. **Live microphone monitoring** (sidetone) so I didn't yell into my headset while talking with friends.
 
-On Linux, there was no real equivalent:
-- ❌ **Traditional patchbays (qpwgraph, Helvum)** were cluttered with spiderwebs of hundreds of audio wires, had zero gamer presets, and lacked ChatMix.
-- ❌ **Windows SteelSeries GG** cannot run natively on Linux, demands Windows kernel audio drivers, consumes **~800 MB to 1.2 GB of RAM**, and runs background telemetry tracking services.
-- ❌ Generic sound settings lacked application routing persistence and had no Wayland / Hyprland integration.
+When I searched for a Linux alternative to SteelSeries Sonar, I hit a dead end:
+- ❌ **Traditional patchbays (qpwgraph, Helvum)**: Inundated with confusing spiderwebs of hundreds of raw PipeWire audio nodes, with zero gaming presets, no per-app persistent routing, and no ChatMix logic.
+- ❌ **Windows SteelSeries GG in Wine/Proton**: Impossible to run. It demands proprietary Windows kernel audio drivers, idles at **800 MB to 1.2 GB of RAM**, and runs constant background telemetry services.
+- ❌ **Generic sound managers**: Lacked application memory, lacked dynamic filter chains, and had zero Wayland / Hyprland bar integration.
 
-**VoiceGG fixes this permanently.** Written from scratch in **Rust** directly on top of the native **PipeWire** audio graph, VoiceGG gives Linux gamers the full SteelSeries Sonar experience with **6 MB of RAM**, **0.0% idle CPU**, and zero artificial latency.
+**I refused to settle. So I built VoiceGG.**
 
-— Built with passion by [@1MEshh](https://github.com/1MEshh)
+Engineered from the ground up in **Rust** directly interfacing with the native **PipeWire** filter-chain engine, VoiceGG delivers everything SteelSeries Sonar provided—and more:
+- Consumes only **~6 MB of RAM** (over **100× lighter** than Windows SteelSeries GG).
+- Uses **0.0% CPU when idle** with sub-6ms roundtrip processing latency.
+- Features **zero cloud telemetry**, **zero accounts**, and **100% offline local privacy**.
+- Includes authentic **Thmanyah (`ثمانية`)** typography and full bidirectional **Arabic (RTL)** localization.
+
+— Built with passion for the Linux gaming community by [@1MEshh](https://github.com/1MEshh)
 
 ---
 
