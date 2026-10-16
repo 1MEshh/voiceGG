@@ -106,6 +106,51 @@ pub enum IpcRequest {
         /// Channel to cycle.
         channel: ChannelId,
     },
+    /// Set streamer dual-bus mode enabled or disabled.
+    SetStreamerMode {
+        /// Whether streamer mode is active.
+        enabled: bool,
+    },
+    /// Set personal headphone mix toggle for a channel.
+    SetPersonalMix {
+        /// Channel to toggle.
+        channel: ChannelId,
+        /// Enabled in personal mix.
+        enabled: bool,
+    },
+    /// Set stream audience mix toggle for a channel.
+    SetStreamMix {
+        /// Channel to toggle.
+        channel: ChannelId,
+        /// Enabled in stream mix.
+        enabled: bool,
+    },
+    /// Toggle favorite status of a preset for a channel.
+    ToggleFavoritePreset {
+        /// Target channel.
+        channel: ChannelId,
+        /// Preset ID.
+        preset_id: String,
+    },
+    /// Set accent color for a specific channel.
+    SetChannelColor {
+        /// Target channel.
+        channel: ChannelId,
+        /// Color hex code.
+        hex: String,
+    },
+    /// Save a custom user preset.
+    SaveCustomPreset {
+        /// Channel for the preset.
+        channel: ChannelId,
+        /// Full preset definition.
+        preset: Preset,
+    },
+    /// Delete a custom user preset by ID.
+    DeleteCustomPreset {
+        /// ID of preset to delete.
+        preset_id: String,
+    },
 }
 
 /// Responses returned from Daemon to Client.

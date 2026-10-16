@@ -330,6 +330,88 @@ impl RequestHandler for DaemonHandler {
                     IpcResponse::Success
                 }
             }
+            IpcRequest::SetStreamerMode { enabled } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.streamer_mode = enabled;
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Streamer mode set to {}", enabled);
+                IpcResponse::Success
+            }
+            IpcRequest::SetPersonalMix { channel, enabled } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.personal_mix.insert(channel, enabled);
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Personal mix for {} set to {}", channel, enabled);
+                IpcResponse::Success
+            }
+            IpcRequest::SetStreamMix { channel, enabled } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.stream_mix.insert(channel, enabled);
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Stream mix for {} set to {}", channel, enabled);
+                IpcResponse::Success
+            }
+            IpcRequest::ToggleFavoritePreset { channel, preset_id } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    let list = cfg.favorite_presets.entry(channel).or_default();
+                    if let Some(pos) = list.iter().position(|id| id == &preset_id) {
+                        list.remove(pos);
+                    } else {
+                        list.push(preset_id);
+                    }
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                IpcResponse::Success
+            }
+            IpcRequest::SetChannelColor { channel, hex } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    if let Some(ch_theme) = cfg.theme.channels.get_mut(&channel) {
+                        ch_theme.accent_hex = hex.clone();
+                    } else {
+                        cfg.theme.channels.insert(
+                            channel,
+                            voicegg_core::ChannelTheme {
+                                accent_hex: hex.clone(),
+                                secondary_hex: hex.clone(),
+                            },
+                        );
+                    }
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Channel color for {} set to {}", channel, hex);
+                IpcResponse::Success
+            }
+            IpcRequest::SaveCustomPreset { channel, preset } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.custom_presets.insert(preset.id.clone(), preset.clone());
+                    cfg.active_presets.insert(channel, preset.id.clone());
+                }
+                {
+                    let mut gm = self.graph.lock().unwrap();
+                    let _ = gm.apply_preset(channel, &preset);
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Saved custom preset '{}' for {}", preset.name, channel);
+                IpcResponse::Success
+            }
+            IpcRequest::DeleteCustomPreset { preset_id } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.custom_presets.remove(&preset_id);
+                }
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Deleted custom preset '{}'", preset_id);
+                IpcResponse::Success
+            }
         }
     }
 }

@@ -285,6 +285,115 @@ async fn set_app_volume(
     }
 }
 
+#[tauri::command]
+async fn set_streamer_mode(enabled: bool, state: State<'_, IpcState>) -> Result<(), String> {
+    match state.send_request(IpcRequest::SetStreamerMode { enabled }).await? {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn set_personal_mix(
+    channel: String,
+    enabled: bool,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::SetPersonalMix { channel: ch, enabled })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn set_stream_mix(
+    channel: String,
+    enabled: bool,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::SetStreamMix { channel: ch, enabled })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn toggle_favorite_preset(
+    channel: String,
+    preset_id: String,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::ToggleFavoritePreset { channel: ch, preset_id })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn set_channel_color(
+    channel: String,
+    hex: String,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::SetChannelColor { channel: ch, hex })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn save_custom_preset(
+    channel: String,
+    preset: Preset,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::SaveCustomPreset { channel: ch, preset })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn delete_custom_preset(
+    preset_id: String,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::DeleteCustomPreset { preset_id })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -485,7 +594,14 @@ pub fn run() {
             get_capabilities,
             get_meters,
             set_language,
-            set_app_volume
+            set_app_volume,
+            set_streamer_mode,
+            set_personal_mix,
+            set_stream_mix,
+            toggle_favorite_preset,
+            set_channel_color,
+            save_custom_preset,
+            delete_custom_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

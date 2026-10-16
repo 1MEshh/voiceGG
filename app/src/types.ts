@@ -85,12 +85,29 @@ export interface Preset {
   compressor?: CompressorConfig;
   noise_gate?: NoiseGateConfig;
   limiter?: LimiterConfig;
+  spatial?: { enabled: boolean; immersion_pct: number };
+  smart_volume?: { enabled: boolean; mode: string };
 }
 
 export interface AppRouteRule {
   binary_name: string;
   target_channel: ChannelId;
   volume: number;
+}
+
+export interface ChannelTheme {
+  accent_hex: string;
+  secondary_hex: string;
+}
+
+export interface ThemeConfig {
+  name: string;
+  background_hex: string;
+  surface_hex: string;
+  text_primary_hex: string;
+  channels: Partial<Record<ChannelId, ChannelTheme>>;
+  meter_style: string;
+  follow_pywal: boolean;
 }
 
 export interface VoiceggConfig {
@@ -104,6 +121,12 @@ export interface VoiceggConfig {
   auto_game_detection: boolean;
   preferred_output_device?: string | null;
   preferred_input_device?: string | null;
+  streamer_mode?: boolean;
+  personal_mix?: Partial<Record<ChannelId, boolean>>;
+  stream_mix?: Partial<Record<ChannelId, boolean>>;
+  favorite_presets?: Partial<Record<ChannelId, string[]>>;
+  custom_presets?: Record<string, Preset>;
+  theme?: ThemeConfig;
 }
 
 export interface PluginCapabilities {
