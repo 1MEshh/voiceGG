@@ -58,14 +58,15 @@ impl RequestHandler for DaemonHandler {
             }
             IpcRequest::SetVolume { channel, volume } => {
                 let volume = volume.min(150);
-                {
+                let effective_vol = {
                     let mut cfg = self.config.write().unwrap();
                     cfg.volumes.insert(channel, volume);
-                }
+                    cfg.effective_volume(channel)
+                };
                 let gm = self.graph.lock().unwrap();
-                let _ = gm.set_channel_volume(channel, volume);
+                let _ = gm.set_channel_volume(channel, effective_vol);
                 self.dirty.store(true, Ordering::Relaxed);
-                tracing::info!("Volume for {} set to {}%", channel, volume);
+                tracing::info!("Volume for {} set to {}% (effective: {}%)", channel, volume, effective_vol);
                 IpcResponse::Success
             }
             IpcRequest::SetMute { channel, muted } => {
@@ -80,12 +81,21 @@ impl RequestHandler for DaemonHandler {
                 IpcResponse::Success
             }
             IpcRequest::SetChatMix { value } => {
-                {
+                let (game_vol, chat_vol) = {
                     let mut cfg = self.config.write().unwrap();
                     cfg.chatmix = value.clamp(-100, 100);
+                    (
+                        cfg.effective_volume(ChannelId::Game),
+                        cfg.effective_volume(ChannelId::Chat),
+                    )
+                };
+                {
+                    let gm = self.graph.lock().unwrap();
+                    let _ = gm.set_channel_volume(ChannelId::Game, game_vol);
+                    let _ = gm.set_channel_volume(ChannelId::Chat, chat_vol);
                 }
                 self.dirty.store(true, Ordering::Relaxed);
-                tracing::info!("ChatMix balance set to {}", value);
+                tracing::info!("ChatMix balance set to {} (game: {}%, chat: {}%)", value, game_vol, chat_vol);
                 IpcResponse::Success
             }
             IpcRequest::SetPreset { channel, preset } => {
@@ -310,6 +320,12 @@ impl RequestHandler for DaemonHandler {
                         let mut cfg = self.config.write().unwrap();
                         cfg.active_presets.insert(channel, next_preset.id.clone());
                     }
+                    {
+                        let mut gm = self.graph.lock().unwrap();
+                        if let Err(e) = gm.apply_preset(channel, &next_preset) {
+                            tracing::warn!("Failed to apply cycled preset: {e}");
+                        }
+                    }
                     self.dirty.store(true, Ordering::Relaxed);
                     IpcResponse::Success
                 }
@@ -384,6 +400,45 @@ async fn main() -> Result<()> {
         "Loaded configuration with {} routing rules",
         loaded_config.routing_rules.len()
     );
+
+    // Synchronize initial configuration with audio graph and DSP engine
+    for ch in [
+        ChannelId::Master,
+        ChannelId::Game,
+        ChannelId::Chat,
+        ChannelId::Media,
+        ChannelId::Aux,
+        ChannelId::Mic,
+    ] {
+        let vol = loaded_config.effective_volume(ch);
+        let muted = loaded_config.muted.get(&ch).copied().unwrap_or(false);
+        let _ = graph_manager.set_channel_volume(ch, vol);
+        let _ = graph_manager.set_channel_mute(ch, muted);
+    }
+
+    let builtin_presets = voicegg_core::Preset::builtin_presets();
+    for (ch, preset_id) in &loaded_config.active_presets {
+        let preset = loaded_config
+            .custom_presets
+            .get(preset_id)
+            .cloned()
+            .or_else(|| {
+                builtin_presets
+                    .iter()
+                    .find(|p| p.id.eq_ignore_ascii_case(preset_id))
+                    .cloned()
+            });
+        if let Some(p) = preset {
+            let _ = graph_manager.apply_preset(*ch, &p);
+        }
+    }
+
+    if let Some(ref sink) = loaded_config.preferred_output_device {
+        let _ = graph_manager.set_output_sink(sink);
+    }
+    if let Some(ref source) = loaded_config.preferred_input_device {
+        let _ = graph_manager.set_input_source(source);
+    }
 
     let graph = Arc::new(Mutex::new(graph_manager));
     let config = Arc::new(RwLock::new(loaded_config));
@@ -475,8 +530,23 @@ async fn main() -> Result<()> {
                             bg_dirty.store(true, Ordering::Relaxed);
 
                             // Route game process stream to Game channel
-                            let gm = bg_graph.lock().unwrap();
+                            let mut gm = bg_graph.lock().unwrap();
                             let _ = gm.route_app_by_name(&game.matched_binary, ChannelId::Game);
+                            let builtin = voicegg_core::Preset::builtin_presets();
+                            if let Some(p) = bg_config
+                                .read()
+                                .unwrap()
+                                .custom_presets
+                                .get(&game.preset_id)
+                                .cloned()
+                                .or_else(|| {
+                                    builtin
+                                        .into_iter()
+                                        .find(|p| p.id.eq_ignore_ascii_case(&game.preset_id))
+                                })
+                            {
+                                let _ = gm.apply_preset(ChannelId::Game, &p);
+                            }
                         }
                     }
                     None => {
@@ -487,6 +557,11 @@ async fn main() -> Result<()> {
                             cfg.active_presets
                                 .insert(ChannelId::Game, "game_flat".to_string());
                             bg_dirty.store(true, Ordering::Relaxed);
+                            let mut gm = bg_graph.lock().unwrap();
+                            let builtin = voicegg_core::Preset::builtin_presets();
+                            if let Some(p) = builtin.into_iter().find(|p| p.id == "game_flat") {
+                                let _ = gm.apply_preset(ChannelId::Game, &p);
+                            }
                         }
                     }
                 }
