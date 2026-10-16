@@ -4,15 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use voicegg_core::{ChannelId, PluginCapabilities, Preset, VoiceggConfig};
 use voicegg_pw::{ActiveStream, AudioDevice};
-
-/// Peak and RMS audio meter levels for a channel in dBFS.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct ChannelMeter {
-    /// Peak level in dBFS.
-    pub peak_dbfs: f32,
-    /// RMS level in dBFS.
-    pub rms_dbfs: f32,
-}
+pub use voicegg_pw::ChannelMeter;
 
 /// Overall system state snapshot returned by the daemon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

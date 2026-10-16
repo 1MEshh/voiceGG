@@ -7,6 +7,7 @@ authors.workspace = true
 
 [dependencies]
 voicegg-core = { workspace = true }
+voicegg-dsp = { workspace = true }
 pipewire = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

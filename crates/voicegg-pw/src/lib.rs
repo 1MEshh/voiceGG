@@ -5,6 +5,7 @@
 
 pub mod chain;
 pub mod device;
+pub mod dsp_engine;
 pub mod error;
 pub mod graph;
 
@@ -13,5 +14,6 @@ pub use chain::{
     FilterChainRunner,
 };
 pub use device::{ActiveStream, AudioDevice, DeviceType};
+pub use dsp_engine::{ChannelMeter, DspChannelWorker, DspEngine};
 pub use error::{PwError, Result};
 pub use graph::GraphManager;
