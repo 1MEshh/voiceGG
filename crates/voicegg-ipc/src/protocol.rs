@@ -36,6 +36,7 @@ pub struct SystemStatus {
 /// Commands/Requests sent from Client (CLI / GUI) to Daemon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
+#[allow(clippy::large_enum_variant)]
 pub enum IpcRequest {
     /// Request the full system status.
     GetStatus,

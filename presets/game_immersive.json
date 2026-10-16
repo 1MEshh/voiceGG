@@ -86,7 +86,8 @@
     ],
     "bass_db": 4.0,
     "voice_db": 0.0,
-    "treble_db": 3.0
+    "treble_db": 3.0,
+    "input_gain_db": 0.0
   },
   "noise_canceller": null,
   "compressor": null,
@@ -95,5 +96,7 @@
     "enabled": true,
     "ceiling_db": -6.0,
     "release_ms": 50.0
-  }
+  },
+  "spatial": null,
+  "smart_volume": null
 }

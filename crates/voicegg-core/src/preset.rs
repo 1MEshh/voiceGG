@@ -2,6 +2,7 @@
 
 use crate::dsp_types::{
     CompressorConfig, EqConfig, LimiterConfig, NoiseCancellerConfig, NoiseGateConfig,
+    SmartVolumeConfig, SpatialConfig,
 };
 use crate::error::{CoreError, Result};
 use serde::{Deserialize, Serialize};
@@ -53,6 +54,12 @@ pub struct Preset {
     /// Optional output limiter settings.
     #[serde(default)]
     pub limiter: Option<LimiterConfig>,
+    /// Optional 3D spatial surround virtualization configuration.
+    #[serde(default)]
+    pub spatial: Option<SpatialConfig>,
+    /// Optional smart volume leveling configuration.
+    #[serde(default)]
+    pub smart_volume: Option<SmartVolumeConfig>,
 }
 
 impl Default for Preset {
@@ -69,6 +76,8 @@ impl Default for Preset {
             compressor: None,
             noise_gate: None,
             limiter: Some(LimiterConfig::default()),
+            spatial: None,
+            smart_volume: None,
         }
     }
 }
@@ -348,6 +357,8 @@ impl Preset {
                 ceiling_db: -6.0,
                 release_ms: 50.0,
             }),
+            spatial: None,
+            smart_volume: None,
         }
     }
 
@@ -378,6 +389,8 @@ impl Preset {
                 ceiling_db: -6.0,
                 release_ms: 50.0,
             }),
+            spatial: None,
+            smart_volume: None,
         }
     }
 
@@ -404,6 +417,8 @@ impl Preset {
                 ceiling_db: -6.0,
                 release_ms: 50.0,
             }),
+            spatial: None,
+            smart_volume: None,
         }
     }
 
@@ -458,6 +473,8 @@ impl Preset {
                 ceiling_db: -1.0,
                 release_ms: 30.0,
             }),
+            spatial: None,
+            smart_volume: None,
         }
     }
 
@@ -494,6 +511,7 @@ impl Preset {
             bass_db: bass,
             voice_db: voice,
             treble_db: treble,
+            input_gain_db: 0.0,
         }
     }
 }

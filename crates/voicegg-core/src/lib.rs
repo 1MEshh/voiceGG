@@ -11,10 +11,11 @@ pub mod preset;
 pub mod theme;
 
 pub use channel::ChannelId;
-pub use config::{AppRouteRule, VoiceggConfig};
+pub use config::{calculate_chatmix_volume, AppRouteRule, VoiceggConfig};
 pub use dsp_types::{
-    CompressorConfig, EqBand, EqConfig, FilterType, LimiterConfig, NoiseCancellerConfig,
-    NoiseGateConfig, PluginCapabilities,
+    BiquadCoefficients, CompressorConfig, EqBand, EqConfig, FilterType, LimiterConfig,
+    NoiseCancellerConfig, NoiseGateConfig, PluginCapabilities, SmartVolumeConfig,
+    SpatialConfig,
 };
 pub use error::{CoreError, Result};
 pub use preset::{Preset, PresetCategory};

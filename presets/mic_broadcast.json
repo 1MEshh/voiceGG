@@ -86,7 +86,8 @@
     ],
     "bass_db": -2.0,
     "voice_db": 2.5,
-    "treble_db": 1.5
+    "treble_db": 1.5,
+    "input_gain_db": 0.0
   },
   "noise_canceller": {
     "enabled": true,
@@ -114,5 +115,7 @@
     "enabled": true,
     "ceiling_db": -1.0,
     "release_ms": 30.0
-  }
+  },
+  "spatial": null,
+  "smart_volume": null
 }

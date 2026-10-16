@@ -659,11 +659,14 @@ mod tests {
                 bass_db: 0.0,
                 voice_db: 0.0,
                 treble_db: 0.0,
+                input_gain_db: 0.0,
             },
             noise_canceller: None,
             compressor: None,
             noise_gate: None,
             limiter: None,
+            spatial: None,
+            smart_volume: None,
         };
 
         let caps = PluginCapabilities::default();
@@ -694,6 +697,8 @@ mod tests {
             compressor: None,
             noise_gate: None,
             limiter: None,
+            spatial: None,
+            smart_volume: None,
         };
 
         let mut caps = PluginCapabilities::default();
