@@ -149,6 +149,27 @@ impl GraphManager {
             }
             let _ = fs::remove_file(&path);
         }
+
+        // Cleanup sweep for any dangling VoiceGG modules
+        if let Ok(output) = Command::new("pactl")
+            .args(["list", "modules", "short"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if line.contains("voicegg_") {
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if let Some(id_str) = parts.first() {
+                        if let Ok(id) = id_str.trim().parse::<u32>() {
+                            tracing::info!("Sweep: unloading orphaned module {id}");
+                            let _ = Command::new("pactl")
+                                .args(["unload-module", &id.to_string()])
+                                .output();
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Initializes PipeWire connection and cleans up any old dangling modules.
@@ -346,13 +367,79 @@ impl GraphManager {
     pub fn teardown_virtual_devices(&mut self) -> Result<()> {
         tracing::info!("Tearing down VoiceGG virtual devices...");
 
-        // 1. Unload mic monitor module if active
+        // 1. Move all active sink-inputs from voicegg_* sinks back to original_default_sink via pactl move-sink-input
+        let default_sink = self.state.original_default_sink.clone().or_else(|| {
+            Command::new("pactl")
+                .arg("get-default-sink")
+                .output()
+                .ok()
+                .and_then(|out| {
+                    if out.status.success() {
+                        let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                        if !name.is_empty() && !name.starts_with("voicegg_") {
+                            Some(name)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+        });
+
+        if let Some(ref sink) = default_sink {
+            let sink_map = Self::get_sink_id_to_name_map();
+            if let Ok(output) = Command::new("pactl").args(["list", "sink-inputs"]).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for block in text.split("Sink Input #") {
+                    if block.trim().is_empty() {
+                        continue;
+                    }
+                    let mut input_id = 0;
+                    let mut input_sink = String::new();
+                    for line in block.lines() {
+                        let trimmed = line.trim();
+                        if trimmed.starts_with("Sink: ") {
+                            let s_str = trimmed.trim_start_matches("Sink: ").trim();
+                            if let Ok(s_id) = s_str.parse::<u32>() {
+                                if let Some(name) = sink_map.get(&s_id) {
+                                    input_sink = name.clone();
+                                } else {
+                                    input_sink = s_str.to_string();
+                                }
+                            } else {
+                                input_sink = s_str.to_string();
+                            }
+                        }
+                    }
+                    if let Some(first_line) = block.lines().next() {
+                        input_id = first_line.trim().parse().unwrap_or(0);
+                    }
+                    if input_id > 0 && input_sink.starts_with("voicegg_") {
+                        tracing::info!(
+                            "Moving sink-input {} from '{}' back to '{}'",
+                            input_id,
+                            input_sink,
+                            sink
+                        );
+                        let _ = Command::new("pactl")
+                            .args(["move-sink-input", &input_id.to_string(), sink])
+                            .output();
+                    }
+                }
+            }
+        }
+
+        // 2. Stop dsp_engine.stop_all()
+        self.dsp_engine.stop_all();
+
+        // 3. Unload mic monitor module if active
         let _ = self.set_mic_monitor(false, 0);
 
-        // 2. Terminate all filter-chain child processes
+        // Terminate all filter-chain child processes
         self.filter_chains.clear();
 
-        // 3. Restore original default sink & source first
+        // Restore original default sink & source
         if let Some(ref sink) = self.state.original_default_sink {
             tracing::info!("Restoring default output sink to '{}'", sink);
             let _ = Command::new("pactl")
@@ -376,6 +463,29 @@ impl GraphManager {
 
         self.state.loaded_modules.clear();
         self.cycle_detector.clear();
+
+        // 5. Final cleanup sweep: query pactl list modules short, find any module with voicegg_ in its arguments, and unload it
+        if let Ok(output) = Command::new("pactl")
+            .args(["list", "modules", "short"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if line.contains("voicegg_") {
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if let Some(id_str) = parts.first() {
+                        if let Ok(id) = id_str.trim().parse::<u32>() {
+                            tracing::info!("Cleanup sweep: unloading module {id}");
+                            let _ = Command::new("pactl")
+                                .args(["unload-module", &id.to_string()])
+                                .output();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Remove modules.json state file
         let _ = fs::remove_file(Self::state_file_path());
         tracing::info!("VoiceGG teardown complete. System audio restored to original state.");
 

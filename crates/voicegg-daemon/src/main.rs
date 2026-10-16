@@ -12,7 +12,7 @@ use game_detector::GameDetector;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
-use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::sleep;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use voicegg_core::{ChannelId, VoiceggConfig};
@@ -504,14 +504,27 @@ async fn main() -> Result<()> {
         }
     });
 
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sighup = signal(SignalKind::hangup())?;
+    let mut sigquit = signal(SignalKind::quit())?;
+
     tracing::info!("voicegg-daemon running. Waiting for termination signals...");
 
     tokio::select! {
-        res = signal::ctrl_c() => {
+        res = tokio::signal::ctrl_c() => {
             if let Err(e) = res {
                 tracing::warn!("Failed to listen for Ctrl-C: {e}");
             }
-            tracing::info!("Shutdown signal received via Ctrl-C, cleaning up virtual devices...");
+            tracing::info!("Shutdown signal received via SIGINT (Ctrl-C), cleaning up virtual devices...");
+        }
+        _ = sigterm.recv() => {
+            tracing::info!("Shutdown signal received via SIGTERM, cleaning up virtual devices...");
+        }
+        _ = sighup.recv() => {
+            tracing::info!("Shutdown signal received via SIGHUP, cleaning up virtual devices...");
+        }
+        _ = sigquit.recv() => {
+            tracing::info!("Shutdown signal received via SIGQUIT, cleaning up virtual devices...");
         }
         _ = shutdown_rx.recv() => {
             tracing::info!("Shutdown signal received via IPC, cleaning up virtual devices...");
@@ -530,5 +543,5 @@ async fn main() -> Result<()> {
 
     tracing::info!("voicegg-daemon exited cleanly.");
 
-    Ok(())
+    std::process::exit(0);
 }
