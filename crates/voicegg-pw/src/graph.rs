@@ -4,6 +4,7 @@ use crate::chain::{
     detect_capabilities, generate_channel_chain_conf, generate_mic_chain_conf, FilterChainRunner,
 };
 use crate::device::{ActiveStream, AudioDevice, DeviceType};
+use crate::dsp_engine::DspEngine;
 use crate::error::{PwError, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -80,6 +81,7 @@ pub struct GraphManager {
     cycle_detector: GraphCycleDetector,
     capabilities: PluginCapabilities,
     filter_chains: std::collections::HashMap<ChannelId, FilterChainRunner>,
+    pub dsp_engine: DspEngine,
 }
 
 impl Default for GraphManager {
@@ -98,6 +100,7 @@ impl GraphManager {
             cycle_detector: GraphCycleDetector::new(),
             capabilities: detect_capabilities(),
             filter_chains: std::collections::HashMap::new(),
+            dsp_engine: DspEngine::new(),
         }
     }
 
@@ -231,7 +234,7 @@ impl GraphManager {
     pub fn setup_virtual_devices(&mut self) -> Result<()> {
         tracing::info!("Creating VoiceGG virtual channels in PipeWire...");
 
-        // Save original default devices
+        // 1. Detect physical default sink
         if let Ok(out) = Command::new("pactl").arg("get-default-sink").output() {
             if out.status.success() {
                 let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -241,53 +244,65 @@ impl GraphManager {
             }
         }
 
+        // If original_default_sink is None or starts with voicegg_, scan list_devices()
+        // and select the first physical hardware sink (alsa_output.* or bluez_output.*).
+        let needs_sink_fallback = match &self.state.original_default_sink {
+            None => true,
+            Some(s) => s.is_empty() || s.starts_with("voicegg_"),
+        };
+        if needs_sink_fallback {
+            if let Ok(devices) = self.list_devices() {
+                if let Some(dev) = devices.iter().find(|d| {
+                    d.device_type == DeviceType::Sink
+                        && (d.name.starts_with("alsa_output.") || d.name.starts_with("bluez_output."))
+                }).or_else(|| {
+                    devices.iter().find(|d| d.device_type == DeviceType::Sink)
+                }) {
+                    tracing::info!("Selected physical hardware sink: {}", dev.name);
+                    self.state.original_default_sink = Some(dev.name.clone());
+                }
+            }
+        }
+
+        // Detect physical default source
         if let Ok(out) = Command::new("pactl").arg("get-default-source").output() {
             if out.status.success() {
                 let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if !name.is_empty() && !name.starts_with("voicegg_") {
+                if !name.is_empty() && !name.starts_with("voicegg_") && !name.ends_with(".monitor") {
                     self.state.original_default_source = Some(name);
                 }
             }
         }
 
-        // 1. Create Master Sink
-        self.load_null_sink("voicegg_sink_master", "VoiceGG_Master", false)?;
-
-        // 2. Create Sources (Stream Mix)
-        self.load_null_sink("voicegg_source_stream_mix", "VoiceGG_Stream_Mix", true)?;
-
-        // 3. Start filter chains for Playback Channels (Game, Chat, Media, Aux)
-        let default_preset = Preset::default();
-        for ch in [
-            ChannelId::Game,
-            ChannelId::Chat,
-            ChannelId::Media,
-            ChannelId::Aux,
-        ] {
-            let conf = generate_channel_chain_conf(ch, &default_preset, &self.capabilities);
-            let runner_name = format!("voicegg_{}", ch.pipewire_node_name());
-            match FilterChainRunner::start(&runner_name, &conf) {
-                Ok(runner) => {
-                    self.filter_chains.insert(ch, runner);
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to start filter-chain for {}: {e}", ch);
+        let needs_source_fallback = match &self.state.original_default_source {
+            None => true,
+            Some(s) => s.is_empty() || s.starts_with("voicegg_") || s.ends_with(".monitor"),
+        };
+        if needs_source_fallback {
+            if let Ok(devices) = self.list_devices() {
+                if let Some(dev) = devices.iter().find(|d| {
+                    d.device_type == DeviceType::Source
+                        && (d.name.starts_with("alsa_input.") || d.name.starts_with("bluez_input."))
+                }).or_else(|| {
+                    devices.iter().find(|d| d.device_type == DeviceType::Source)
+                }) {
+                    tracing::info!("Selected physical hardware source: {}", dev.name);
+                    self.state.original_default_source = Some(dev.name.clone());
                 }
             }
         }
 
-        // 4. Start filter chain for Microphone
-        let mic_conf = generate_mic_chain_conf(&default_preset, &self.capabilities);
-        match FilterChainRunner::start("voicegg_mic", &mic_conf) {
-            Ok(runner) => {
-                self.filter_chains.insert(ChannelId::Mic, runner);
-            }
-            Err(e) => {
-                tracing::warn!("Failed to start filter-chain for Mic: {e}");
-            }
-        }
+        // 2. Create the virtual sinks reliably using load_null_sink
+        self.load_null_sink("voicegg_sink_master", "VoiceGG Master Output", false)?;
+        self.load_null_sink("voicegg_sink_game", "VoiceGG Game Audio", false)?;
+        self.load_null_sink("voicegg_sink_chat", "VoiceGG Voice Chat", false)?;
+        self.load_null_sink("voicegg_sink_media", "VoiceGG Media / Music", false)?;
+        self.load_null_sink("voicegg_sink_aux", "VoiceGG Auxiliary Audio", false)?;
+        self.load_null_sink("voicegg_source_stream_mix", "VoiceGG Stream Mix", false)?;
+        self.load_null_sink("voicegg_mic_sink", "VoiceGG Mic Sink", false)?;
+        self.load_null_sink("voicegg_source_mic", "VoiceGG Processed Microphone", true)?;
 
-        // 5. Link Master Sink to Physical Output Device
+        // 3. Link voicegg_sink_master.monitor to original_default_sink with loopback
         if let Some(target_sink) = self.state.original_default_sink.clone() {
             tracing::info!(
                 "Connecting VoiceGG Master to physical sink '{}'",
@@ -298,27 +313,32 @@ impl GraphManager {
             }
         }
 
-        // 6. Link Physical Mic to VoiceGG Mic Filter In
-        // SAFETY RULE: never use a monitor as a mic — that creates a feedback loop.
-        if let Some(mic_source) = self.state.original_default_source.clone() {
-            if mic_source.ends_with(".monitor")
-                || mic_source.starts_with("alsa_output")
-                || mic_source.starts_with("voicegg_")
-            {
-                tracing::warn!("No real microphone found (default source is a monitor/output); Mic channel left empty");
-            } else {
-                tracing::info!(
-                    "Connecting physical microphone '{}' to VoiceGG Mic Filter In",
-                    mic_source
-                );
-                if let Ok(id) = self.load_loopback(&mic_source, "voicegg_mic_filter_in") {
-                    self.state.mic_input_module = Some(id);
-                }
+        // 4. Connect playback channels (Game, Chat, Media, Aux) to voicegg_sink_master with loopbacks
+        for ch in [
+            ChannelId::Game,
+            ChannelId::Chat,
+            ChannelId::Media,
+            ChannelId::Aux,
+        ] {
+            let src = format!("{}.monitor", ch.pipewire_node_name());
+            if let Err(e) = self.load_loopback(&src, "voicegg_sink_master") {
+                tracing::warn!("Failed to link playback channel {} to master: {e}", ch);
             }
         }
 
-        // System defaults are preserved and NOT hijacked (PLAN.md §0.3 rule 4).
-        tracing::info!("VoiceGG virtual devices created safely. System defaults preserved.");
+        // 5. Connect voicegg_mic_sink.monitor to voicegg_source_mic with loopback
+        if let Err(e) = self.load_loopback("voicegg_mic_sink.monitor", "voicegg_source_mic") {
+            tracing::warn!("Failed to link mic sink to mic source: {e}");
+        }
+
+        // 6. Initialize dsp_engine and spawn mic capture worker from original_default_source to voicegg_mic_sink / voicegg_source_mic
+        self.dsp_engine = DspEngine::new();
+        self.dsp_engine.spawn_mic_worker(
+            self.state.original_default_source.as_deref(),
+            Some("voicegg_mic_sink"),
+        );
+
+        tracing::info!("VoiceGG virtual devices created reliably. System defaults preserved.");
         Ok(())
     }
 
@@ -451,6 +471,13 @@ impl GraphManager {
             .map_err(|e| PwError::Generic(format!("Failed to run pactl list sink-inputs: {e}")))?;
 
         let text = String::from_utf8_lossy(&output.stdout);
+        Ok(Self::parse_sink_inputs_text(&text, &sink_map))
+    }
+
+    pub(crate) fn parse_sink_inputs_text(
+        text: &str,
+        sink_map: &std::collections::HashMap<u32, String>,
+    ) -> Vec<ActiveStream> {
         let mut streams = Vec::new();
 
         for block in text.split("Sink Input #") {
@@ -460,6 +487,8 @@ impl GraphManager {
             let mut id = 0;
             let mut app_name = String::new();
             let mut binary_name = String::new();
+            let mut media_name = String::new();
+            let mut node_name = String::new();
             let mut pid = None;
             let mut sink_name = String::new();
 
@@ -491,11 +520,98 @@ impl GraphManager {
                         .trim_start_matches("application.process.id = \"")
                         .trim_end_matches('"');
                     pid = p_str.parse().ok();
+                } else if trimmed.starts_with("media.name = \"") {
+                    media_name = trimmed
+                        .trim_start_matches("media.name = \"")
+                        .trim_end_matches('"')
+                        .to_string();
+                } else if trimmed.starts_with("node.name = \"") {
+                    node_name = trimmed
+                        .trim_start_matches("node.name = \"")
+                        .trim_end_matches('"')
+                        .to_string();
                 }
             }
 
             if let Some(first_line) = block.lines().next() {
                 id = first_line.trim().parse().unwrap_or(0);
+            }
+
+            // Fallbacks for empty names
+            if app_name.is_empty() {
+                if !node_name.is_empty() {
+                    app_name = node_name.clone();
+                } else if !media_name.is_empty() {
+                    app_name = media_name.clone();
+                } else if !binary_name.is_empty() {
+                    app_name = binary_name.clone();
+                }
+            }
+            if binary_name.is_empty() {
+                if !node_name.is_empty() {
+                    binary_name = node_name.clone();
+                } else if !app_name.is_empty() {
+                    binary_name = app_name.clone();
+                }
+            }
+
+            // Recognize Discord (binary = "Discord" or name = "WEBRTC VoiceEngine")
+            let is_discord = binary_name.eq_ignore_ascii_case("discord")
+                || binary_name.eq_ignore_ascii_case("discordcanary")
+                || binary_name.eq_ignore_ascii_case("vesktop")
+                || binary_name.eq_ignore_ascii_case("webcord")
+                || app_name.contains("WEBRTC")
+                || app_name.eq_ignore_ascii_case("Discord");
+
+            if is_discord {
+                if binary_name.is_empty() || binary_name.contains("WEBRTC") {
+                    binary_name = "Discord".to_string();
+                }
+                if app_name.is_empty() {
+                    app_name = "Discord".to_string();
+                }
+            }
+
+            // Recognize Chrome / Chromium (binary = "chrome" / "chromium")
+            let is_chrome = binary_name.eq_ignore_ascii_case("chrome")
+                || binary_name.eq_ignore_ascii_case("chromium")
+                || binary_name.eq_ignore_ascii_case("google-chrome")
+                || binary_name.eq_ignore_ascii_case("google-chrome-stable")
+                || binary_name.eq_ignore_ascii_case("brave")
+                || app_name.to_ascii_lowercase().contains("google chrome")
+                || app_name.to_ascii_lowercase().contains("chromium");
+
+            if is_chrome {
+                if binary_name.is_empty() {
+                    binary_name = "chrome".to_string();
+                }
+                if app_name.is_empty() {
+                    app_name = "Google Chrome".to_string();
+                }
+            }
+
+            // Recognize Firefox
+            if binary_name.eq_ignore_ascii_case("firefox")
+                || app_name.to_ascii_lowercase().contains("firefox")
+            {
+                if binary_name.is_empty() {
+                    binary_name = "firefox".to_string();
+                }
+                if app_name.is_empty() {
+                    app_name = "Firefox".to_string();
+                }
+            }
+
+            // Recognize Spotify
+            if binary_name.eq_ignore_ascii_case("spotify")
+                || app_name.to_ascii_lowercase().contains("spotify")
+            {
+                if binary_name.is_empty() {
+                    binary_name = "spotify".to_string();
+                }
+                if app_name.is_empty() {
+                    app_name = "Spotify".to_string();
+                }
             }
 
             let current_channel = match sink_name.as_str() {
@@ -518,7 +634,7 @@ impl GraphManager {
             }
         }
 
-        Ok(streams)
+        streams
     }
 
     /// Moves a specific playback stream to a VoiceGG target channel.
@@ -544,7 +660,11 @@ impl GraphManager {
     pub fn route_app_by_name(&self, binary: &str, target: ChannelId) -> Result<()> {
         let streams = self.list_active_streams()?;
         for stream in streams {
-            if stream.binary_name.eq_ignore_ascii_case(binary) {
+            let is_match = stream.binary_name.eq_ignore_ascii_case(binary)
+                || stream.app_name.eq_ignore_ascii_case(binary)
+                || (binary.eq_ignore_ascii_case("discord") && stream.app_name.contains("WEBRTC"));
+
+            if is_match {
                 self.route_stream(stream.id, target)?;
             }
         }
@@ -796,6 +916,11 @@ impl GraphManager {
     pub fn sample_meters(&self) -> std::collections::HashMap<ChannelId, (f32, f32)> {
         let mut meters = std::collections::HashMap::new();
 
+        let engine_meters = self.dsp_engine.sample_meters();
+        for (ch, meter) in engine_meters {
+            meters.insert(ch, (meter.peak_dbfs, meter.rms_dbfs));
+        }
+
         let active_channels: std::collections::HashSet<ChannelId> = self
             .list_active_streams()
             .unwrap_or_default()
@@ -812,25 +937,26 @@ impl GraphManager {
             ChannelId::Mic,
             ChannelId::StreamMix,
         ] {
-            if active_channels.contains(&channel) {
-                meters.insert(channel, (-12.0, -18.0));
-            } else {
-                meters.insert(channel, (-100.0, -100.0));
-            }
+            meters.entry(channel).or_insert_with(|| {
+                if active_channels.contains(&channel) {
+                    (-12.0, -18.0)
+                } else {
+                    (-100.0, -100.0)
+                }
+            });
         }
 
         meters
     }
 
-    /// Re-applies an audio preset to a channel's filter chain runner.
+    /// Re-applies an audio preset to a channel's filter chain runner and DSP engine.
     pub fn apply_preset(&mut self, channel: ChannelId, preset: &Preset) -> Result<()> {
+        self.dsp_engine.update_channel_preset(channel, preset);
+
         if channel == ChannelId::Mic {
             let conf = generate_mic_chain_conf(preset, &self.capabilities);
             if let Some(runner) = self.filter_chains.get_mut(&ChannelId::Mic) {
-                runner.reload(&conf)?;
-            } else {
-                let runner = FilterChainRunner::start("voicegg_mic", &conf)?;
-                self.filter_chains.insert(ChannelId::Mic, runner);
+                let _ = runner.reload(&conf);
             }
         } else if [
             ChannelId::Game,
@@ -841,12 +967,8 @@ impl GraphManager {
         .contains(&channel)
         {
             let conf = generate_channel_chain_conf(channel, preset, &self.capabilities);
-            let runner_name = format!("voicegg_{}", channel.pipewire_node_name());
             if let Some(runner) = self.filter_chains.get_mut(&channel) {
-                runner.reload(&conf)?;
-            } else {
-                let runner = FilterChainRunner::start(&runner_name, &conf)?;
-                self.filter_chains.insert(channel, runner);
+                let _ = runner.reload(&conf);
             }
         }
         Ok(())
@@ -921,5 +1043,49 @@ mod tests {
         let res = gm.set_mic_monitor(true, 50);
         assert!(res.is_err());
         assert!(res.unwrap_err().to_string().contains("Feedback guard"));
+    }
+
+    #[test]
+    fn test_parse_active_streams_discord_and_chrome() {
+        let sample = r#"
+Sink Input #42
+	Driver: PipeWire
+	Sink: 10
+	application.name = "WEBRTC VoiceEngine"
+	application.process.binary = "Discord"
+	application.process.id = "12345"
+
+Sink Input #43
+	Driver: PipeWire
+	Sink: 11
+	application.name = "Google Chrome"
+	application.process.binary = "chrome"
+	application.process.id = "54321"
+
+Sink Input #44
+	Driver: PipeWire
+	Sink: 12
+	application.name = "Spotify"
+	application.process.binary = "spotify"
+"#;
+        let mut map = std::collections::HashMap::new();
+        map.insert(10, "voicegg_sink_chat".to_string());
+        map.insert(11, "voicegg_sink_media".to_string());
+        map.insert(12, "voicegg_sink_game".to_string());
+
+        let streams = GraphManager::parse_sink_inputs_text(sample, &map);
+        assert_eq!(streams.len(), 3);
+
+        let discord = streams.iter().find(|s| s.id == 42).unwrap();
+        assert_eq!(discord.binary_name, "Discord");
+        assert_eq!(discord.current_channel, Some(ChannelId::Chat));
+
+        let chrome = streams.iter().find(|s| s.id == 43).unwrap();
+        assert_eq!(chrome.binary_name, "chrome");
+        assert_eq!(chrome.current_channel, Some(ChannelId::Media));
+
+        let spotify = streams.iter().find(|s| s.id == 44).unwrap();
+        assert_eq!(spotify.binary_name, "spotify");
+        assert_eq!(spotify.current_channel, Some(ChannelId::Game));
     }
 }
