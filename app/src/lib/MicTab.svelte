@@ -1,11 +1,14 @@
 <script lang="ts">
-  import type { Preset, AudioDevice, PluginCapabilities, ChannelMeter } from '../types';
+  import type { Preset, AudioDevice, PluginCapabilities, ChannelMeter, ChannelId } from '../types';
   import EqGraph from './EqGraph.svelte';
-  import { Waves, Shield, Sliders, Volume2, Mic, Search, Star, Headphones, AlertTriangle } from '@lucide/svelte';
+  import SonarSlider from './SonarSlider.svelte';
+  import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
+  import { Waves, Shield, Sliders, Volume2, Mic, Search, Star, Headphones, AlertTriangle, Sparkles, BookmarkPlus } from '@lucide/svelte';
   import { t } from './i18n';
 
   export let currentPreset: Preset;
   export let allPresets: Preset[] = [];
+  export let favoritePresets: string[] = [];
   export let devices: AudioDevice[] = [];
   export let preferredInputDevice: string | null = null;
   export let onChangePreset: (p: Preset) => void;
@@ -16,6 +19,11 @@
   export let capabilities: PluginCapabilities | undefined = undefined;
   export let meter: ChannelMeter | undefined = undefined;
   export let onSetMicMonitor: (enabled: boolean, volume: number) => void;
+  export let onToggleFavorite: ((presetId: string) => void) | undefined = undefined;
+  export let onSaveCustomPreset: ((channel: ChannelId, preset: Preset) => void) | undefined = undefined;
+
+  let isSavingCustom = false;
+  let customPresetName = '';
 
   $: isRnnoiseAvailable = capabilities ? capabilities.rnnoise : true;
 
@@ -40,9 +48,40 @@
     return '0.0';
   })();
 
+  $: deviceOptions = [
+    { value: 'default', label: $t('mic.default_input') } as SelectOption,
+    ...(devices || [])
+      .filter((d) => d.device_type.toLowerCase() === 'source')
+      .map((d) => ({
+        value: d.name,
+        label: d.description || d.name,
+      } as SelectOption)),
+  ];
+
+  function openSaveCustomModal() {
+    customPresetName = currentPreset.name + ' (Custom)';
+    isSavingCustom = true;
+  }
+
+  function handleConfirmSaveCustom() {
+    const trimmed = customPresetName.trim();
+    if (!trimmed) return;
+    const newPreset: Preset = {
+      ...JSON.parse(JSON.stringify(currentPreset)),
+      id: `custom_${Date.now()}`,
+      name: trimmed,
+      description: `Custom tuned microphone preset`,
+      category: 'custom',
+    };
+    if (onSaveCustomPreset) {
+      onSaveCustomPreset('mic', newPreset);
+    }
+    isSavingCustom = false;
+  }
+
   function handleNoiseChange(val: number) {
     if (!currentPreset.noise_canceller) {
-      currentPreset.noise_canceller = { enabled: val > 0, amount: val, vad_threshold: 0.5 };
+      currentPreset.noise_canceller = { enabled: val > 0, amount: val, vad_threshold: 0.35 };
     } else {
       currentPreset.noise_canceller.amount = val;
       currentPreset.noise_canceller.enabled = val > 0;
@@ -135,7 +174,7 @@
     onChangePreset(currentPreset);
   }
 
-  $: micPresets = allPresets.filter(p => p.category === 'mic');
+  $: micPresets = allPresets.filter(p => p.category === 'mic' || p.category === 'custom');
 </script>
 
 <div class="channel-view mic-view">
@@ -143,13 +182,22 @@
   <div class="preset-bar">
     <div class="preset-info">
       <div class="preset-icon-badge">
-        <Mic size={18} color="var(--color-channel-mic)" />
+        <Mic size={18} color="var(--color-channel-mic, #EC4899)" />
       </div>
       <div class="preset-titles">
         <div class="preset-title-row">
           <span class="preset-name">{currentPreset.name}</span>
-          <button class="star-btn" aria-label={$t('mic.add_favorite', { name: currentPreset.name })} title={$t('mic.add_favorite', { name: currentPreset.name })}>
-            <Star size={14} fill="#eab308" color="#eab308" />
+          <button
+            class="star-btn"
+            class:is-fav={favoritePresets.includes(currentPreset.id)}
+            aria-label={favoritePresets.includes(currentPreset.id) ? 'Remove from favorites' : 'Add to favorites'}
+            on:click={() => onToggleFavorite?.(currentPreset.id)}
+          >
+            <Star
+              size={14}
+              fill={favoritePresets.includes(currentPreset.id) ? '#EAB308' : 'none'}
+              color={favoritePresets.includes(currentPreset.id) ? '#EAB308' : 'var(--color-text-muted)'}
+            />
           </button>
         </div>
         <span class="preset-desc">{currentPreset.description}</span>
@@ -157,18 +205,15 @@
     </div>
 
     <div class="header-controls">
-      <!-- Input Device Selector -->
-      <select
-        class="device-select"
-        aria-label={$t('mic.input_selector_aria')}
-        value={preferredInputDevice || 'default'}
-        on:change={(e) => onSetDevice('source', e.currentTarget.value)}
-      >
-        <option value="default">{$t('mic.default_input')}</option>
-        {#each (devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
-          <option value={dev.name}>{dev.description || dev.name}</option>
-        {/each}
-      </select>
+      <!-- Input Device Selector using CustomSelect -->
+      <div class="device-select-container">
+        <CustomSelect
+          value={preferredInputDevice || 'default'}
+          options={deviceOptions}
+          placeholder={$t('mic.default_input')}
+          onChange={(val) => onSetDevice('source', val)}
+        />
+      </div>
 
       <!-- Live Mic Monitor Toggle -->
       <div class="monitor-wrapper" class:active={micMonitorEnabled}>
@@ -202,10 +247,16 @@
         {/if}
       </div>
 
-      <button class="browse-btn" aria-label={$t('mic.browse_presets_aria')} on:click={onOpenBrowser}>
-        <Search size={14} />
-        <span>{$t('mic.browse_presets')}</span>
-      </button>
+      <div class="preset-actions-right">
+        <button class="save-custom-btn" on:click={openSaveCustomModal} title="Save current settings as a new custom preset">
+          <BookmarkPlus size={14} />
+          <span>Save Custom</span>
+        </button>
+        <button class="browse-btn" aria-label={$t('mic.browse_presets_aria')} on:click={onOpenBrowser}>
+          <Search size={14} />
+          <span>{$t('mic.browse_presets')}</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -267,121 +318,109 @@
         }}
       />
 
-      <!-- Quick Tone Sliders -->
-      <div class="quick-tone-row">
-        <div class="tone-slider-group">
-          <span class="tone-name">{$t('mic.bass_depth')}</span>
-          <input
-            type="range"
-            aria-label={$t('mic.bass_depth_aria')}
-            aria-valuenow={currentPreset.eq.bass_db ?? 0}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            value={currentPreset.eq.bass_db ?? 0}
-            on:input={(e) => handleToneChange('bass', Number(e.currentTarget.value))}
-            class="tone-slider"
-          />
-          <span class="tone-val tabular-nums">{(currentPreset.eq.bass_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.bass_db ?? 0} dB</span>
-        </div>
-        <div class="tone-slider-group">
-          <span class="tone-name">{$t('mic.vocal_clarity')}</span>
-          <input
-            type="range"
-            aria-label={$t('mic.vocal_clarity_aria')}
-            aria-valuenow={currentPreset.eq.voice_db ?? 0}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            value={currentPreset.eq.voice_db ?? 0}
-            on:input={(e) => handleToneChange('voice', Number(e.currentTarget.value))}
-            class="tone-slider"
-          />
-          <span class="tone-val tabular-nums">{(currentPreset.eq.voice_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.voice_db ?? 0} dB</span>
-        </div>
-        <div class="tone-slider-group">
-          <span class="tone-name">{$t('mic.crisp_air')}</span>
-          <input
-            type="range"
-            aria-label={$t('mic.crisp_air_aria')}
-            aria-valuenow={currentPreset.eq.treble_db ?? 0}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            value={currentPreset.eq.treble_db ?? 0}
-            on:input={(e) => handleToneChange('treble', Number(e.currentTarget.value))}
-            class="tone-slider"
-          />
-          <span class="tone-val tabular-nums">{(currentPreset.eq.treble_db ?? 0) > 0 ? '+' : ''}{currentPreset.eq.treble_db ?? 0} dB</span>
-        </div>
-        <div class="tone-slider-group">
-          <span class="tone-name">{$t('mic.input_gain')}</span>
-          <input
-            type="range"
-            aria-label={$t('mic.input_gain')}
-            aria-valuenow={micInputGain}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            value={micInputGain}
-            on:input={(e) => handleInputGainChange(Number(e.currentTarget.value))}
-            class="tone-slider"
-          />
-          <span class="tone-val tabular-nums">{micInputGain > 0 ? '+' : ''}{micInputGain} dB</span>
-        </div>
+      <!-- Quick Tone Sliders with SonarSlider -->
+      <div class="quick-tone-grid">
+        <SonarSlider
+          label={$t('mic.bass_depth')}
+          min={-12}
+          max={12}
+          step={0.5}
+          unit=" dB"
+          centerDetent={true}
+          defaultValue={0}
+          accentColor="#F97316"
+          value={currentPreset.eq.bass_db ?? 0}
+          disabled={!currentPreset.eq.enabled}
+          onChange={(val) => handleToneChange('bass', val)}
+        />
+        <SonarSlider
+          label={$t('mic.vocal_clarity')}
+          min={-12}
+          max={12}
+          step={0.5}
+          unit=" dB"
+          centerDetent={true}
+          defaultValue={0}
+          accentColor="#F97316"
+          value={currentPreset.eq.voice_db ?? 0}
+          disabled={!currentPreset.eq.enabled}
+          onChange={(val) => handleToneChange('voice', val)}
+        />
+        <SonarSlider
+          label={$t('mic.crisp_air')}
+          min={-12}
+          max={12}
+          step={0.5}
+          unit=" dB"
+          centerDetent={true}
+          defaultValue={0}
+          accentColor="#F97316"
+          value={currentPreset.eq.treble_db ?? 0}
+          disabled={!currentPreset.eq.enabled}
+          onChange={(val) => handleToneChange('treble', val)}
+        />
+        <SonarSlider
+          label={$t('mic.input_gain')}
+          min={-12}
+          max={12}
+          step={0.5}
+          unit=" dB"
+          centerDetent={true}
+          defaultValue={0}
+          accentColor="#F97316"
+          value={micInputGain}
+          disabled={!currentPreset.eq.enabled}
+          onChange={(val) => handleInputGainChange(val)}
+        />
       </div>
     </div>
 
     <!-- Bottom DSP Cards Grid -->
     <div class="dsp-grid">
-      <!-- Noise Remover (RNNoise) -->
+      <!-- Noise Remover (RNNoise + VAD Voice Isolation) -->
       <div class="card dsp-card" class:is-disabled={!isRnnoiseAvailable}>
         <div class="card-header">
           <div class="card-title">
-            <Waves size={15} color="var(--color-channel-mic)" />
+            <Waves size={15} color="var(--color-channel-mic, #EC4899)" />
             <span>{$t('mic.noise_remover')}</span>
           </div>
-          <span class="dsp-badge" class:active={isRnnoiseAvailable && noiseAmount > 0}>
-            {#if !isRnnoiseAvailable}
-              {$t('mic.unavailable')}
-            {:else if noiseAmount > 0}
-              {$t('mic.wet', { amount: noiseAmount })}
-            {:else}
-              {$t('mic.bypass')}
+          <div class="card-status-badges">
+            {#if noiseAmount >= 85}
+              <span class="voice-iso-badge" title="NVIDIA Broadcast-grade neural voice isolation envelope active">
+                <Sparkles size={11} />
+                <span>AI Voice Isolation</span>
+              </span>
             {/if}
-          </span>
+            <span class="dsp-badge" class:active={isRnnoiseAvailable && noiseAmount > 0}>
+              {#if !isRnnoiseAvailable}
+                {$t('mic.unavailable')}
+              {:else if noiseAmount > 0}
+                {$t('mic.wet', { amount: noiseAmount })}
+              {:else}
+                {$t('mic.bypass')}
+              {/if}
+            </span>
+          </div>
         </div>
         <p class="dsp-desc">{$t('mic.noise_remover_desc')}</p>
         <div class="dsp-presets-row">
           <button class="dsp-pill" class:active={noiseAmount === 0} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(0)}>{$t('mic.off')}</button>
           <button class="dsp-pill" class:active={noiseAmount === 40} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(40)}>{$t('mic.low')}</button>
           <button class="dsp-pill" class:active={noiseAmount === 65} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(65)}>{$t('mic.balanced')}</button>
-          <button class="dsp-pill" class:active={noiseAmount === 90} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(90)}>{$t('mic.max')}</button>
+          <button class="dsp-pill" class:active={noiseAmount === 100} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(100)}>{$t('mic.max')}</button>
         </div>
-        <div class="dsp-control-row">
-          <span class="dsp-sublabel">{$t('mic.amount')}</span>
-          <input
-            type="range"
-            aria-label={$t('mic.amount_aria')}
-            aria-valuenow={noiseAmount}
-            aria-valuemin="0"
-            aria-valuemax="100"
-            min="0"
-            max="100"
+        <div class="dsp-slider-wrapper">
+          <SonarSlider
+            label={$t('mic.amount')}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            accentColor="var(--color-channel-mic, #EC4899)"
             value={noiseAmount}
             disabled={!isRnnoiseAvailable}
-            on:input={(e) => handleNoiseChange(Number(e.currentTarget.value))}
-            class="dsp-slider"
+            onChange={(val) => handleNoiseChange(val)}
           />
-          <span class="dsp-val tabular-nums">{noiseAmount}%</span>
         </div>
       </div>
 
@@ -389,7 +428,7 @@
       <div class="card dsp-card">
         <div class="card-header">
           <div class="card-title">
-            <Shield size={15} color="var(--color-channel-mic)" />
+            <Shield size={15} color="var(--color-channel-mic, #EC4899)" />
             <span>{$t('mic.noise_gate')}</span>
           </div>
           <label class="toggle-switch">
@@ -418,71 +457,50 @@
           {/if}
         </div>
         <div class="dsp-controls-list">
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.threshold')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.gate_threshold_aria')}
-              aria-valuenow={gateThreshold}
-              aria-valuemin="-60"
-              aria-valuemax="-10"
-              min="-60"
-              max="-10"
-              value={gateThreshold}
-              on:input={(e) => handleGateThresholdChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{gateThreshold} dBFS</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.attack')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.gate_attack_aria')}
-              aria-valuenow={gateAttack}
-              aria-valuemin="1"
-              aria-valuemax="100"
-              min="1"
-              max="100"
-              value={gateAttack}
-              on:input={(e) => handleGateAttackChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{gateAttack} ms</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.release')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.gate_release_aria')}
-              aria-valuenow={gateRelease}
-              aria-valuemin="10"
-              aria-valuemax="1000"
-              min="10"
-              max="1000"
-              value={gateRelease}
-              on:input={(e) => handleGateReleaseChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{gateRelease} ms</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.hysteresis')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.gate_hysteresis_aria')}
-              aria-valuenow={gateHysteresis}
-              aria-valuemin="0"
-              aria-valuemax="12"
-              min="0"
-              max="12"
-              step="0.5"
-              value={gateHysteresis}
-              on:input={(e) => handleGateHysteresisChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{gateHysteresis} dB</span>
-          </div>
+          <SonarSlider
+            label={$t('mic.threshold')}
+            min={-60}
+            max={-10}
+            step={1}
+            unit=" dBFS"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={gateThreshold}
+            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            onChange={(val) => handleGateThresholdChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.attack')}
+            min={1}
+            max={100}
+            step={1}
+            unit=" ms"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={gateAttack}
+            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            onChange={(val) => handleGateAttackChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.release')}
+            min={10}
+            max={1000}
+            step={5}
+            unit=" ms"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={gateRelease}
+            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            onChange={(val) => handleGateReleaseChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.hysteresis')}
+            min={0}
+            max={12}
+            step={0.5}
+            unit=" dB"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={gateHysteresis}
+            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            onChange={(val) => handleGateHysteresisChange(val)}
+          />
         </div>
       </div>
 
@@ -490,7 +508,7 @@
       <div class="card dsp-card">
         <div class="card-header">
           <div class="card-title">
-            <Volume2 size={15} color="var(--color-channel-mic)" />
+            <Volume2 size={15} color="var(--color-channel-mic, #EC4899)" />
             <span>{$t('mic.compressor')}</span>
           </div>
           <label class="toggle-switch">
@@ -517,77 +535,82 @@
           </span>
         </div>
         <div class="dsp-controls-list">
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.threshold')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.comp_threshold_aria')}
-              aria-valuenow={compThreshold}
-              aria-valuemin="-40"
-              aria-valuemax="0"
-              min="-40"
-              max="0"
-              value={compThreshold}
-              on:input={(e) => handleCompThresholdChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{compThreshold} dBFS</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.ratio')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.comp_ratio_aria')}
-              aria-valuenow={compRatio}
-              aria-valuemin="1"
-              aria-valuemax="20"
-              min="1"
-              max="20"
-              step="0.5"
-              value={compRatio}
-              on:input={(e) => handleCompRatioChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{compRatio.toFixed(1)}:1</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.makeup_gain')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.comp_makeup_aria')}
-              aria-valuenow={compMakeup}
-              aria-valuemin="0"
-              aria-valuemax="24"
-              min="0"
-              max="24"
-              step="0.5"
-              value={compMakeup}
-              on:input={(e) => handleCompMakeupChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{compMakeup > 0 ? '+' : ''}{compMakeup.toFixed(1)} dB</span>
-          </div>
-          <div class="dsp-control-row">
-            <span class="dsp-sublabel">{$t('mic.soft_knee')}</span>
-            <input
-              type="range"
-              aria-label={$t('mic.comp_knee_aria')}
-              aria-valuenow={compKnee}
-              aria-valuemin="0"
-              aria-valuemax="12"
-              min="0"
-              max="12"
-              step="0.5"
-              value={compKnee}
-              on:input={(e) => handleCompKneeChange(Number(e.currentTarget.value))}
-              class="dsp-slider"
-            />
-            <span class="dsp-val tabular-nums">{compKnee.toFixed(1)} dB</span>
-          </div>
+          <SonarSlider
+            label={$t('mic.threshold')}
+            min={-40}
+            max={0}
+            step={1}
+            unit=" dBFS"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={compThreshold}
+            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            onChange={(val) => handleCompThresholdChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.ratio')}
+            min={1}
+            max={20}
+            step={0.5}
+            unit=":1"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={compRatio}
+            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            onChange={(val) => handleCompRatioChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.makeup_gain')}
+            min={0}
+            max={24}
+            step={0.5}
+            unit=" dB"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={compMakeup}
+            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            onChange={(val) => handleCompMakeupChange(val)}
+          />
+          <SonarSlider
+            label={$t('mic.soft_knee')}
+            min={0}
+            max={12}
+            step={0.5}
+            unit=" dB"
+            accentColor="var(--color-channel-mic, #EC4899)"
+            value={compKnee}
+            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            onChange={(val) => handleCompKneeChange(val)}
+          />
         </div>
       </div>
     </div>
   </div>
+
+  {#if isSavingCustom}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="custom-modal-backdrop" on:click={() => isSavingCustom = false}>
+      <div class="custom-modal-box" on:click|stopPropagation>
+        <div class="modal-header">
+          <BookmarkPlus size={18} color="var(--color-accent-brand, #FF5200)" />
+          <h3>Save Custom Preset</h3>
+        </div>
+        <p class="modal-desc">Save current microphone EQ curve and DSP tuning into your custom preset library.</p>
+        <input
+          type="text"
+          class="custom-name-input"
+          placeholder="Preset Name"
+          bind:value={customPresetName}
+          on:keydown={(e) => {
+            if (e.key === 'Enter') handleConfirmSaveCustom();
+            if (e.key === 'Escape') isSavingCustom = false;
+          }}
+        />
+        <div class="modal-btn-row">
+          <button type="button" class="btn-cancel" on:click={() => isSavingCustom = false}>Cancel</button>
+          <button type="button" class="btn-confirm" on:click={handleConfirmSaveCustom}>Save Preset</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -667,25 +690,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-
-  .device-select {
-    background: var(--color-surface-3);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border-default);
-    padding: 8px 12px;
-    font-size: 11px;
-    font-weight: 500;
-    font-family: var(--font-sans);
-    border-radius: var(--radius-sm);
-    outline: none;
-    cursor: pointer;
-    max-width: 200px;
-    text-overflow: ellipsis;
-    transition: border-color var(--transition-fast);
-  }
-  .device-select:hover {
-    border-color: var(--color-border-bright);
   }
 
   .monitor-wrapper {
@@ -918,72 +922,68 @@
     border-color: var(--color-channel-mic);
   }
 
-  .quick-tone-row {
+  .preset-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .device-select-container {
+    width: 200px;
+  }
+
+  .save-custom-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-neutral-300, #CBD5E1);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast, 120ms);
+  }
+
+  .save-custom-btn:hover {
+    background: var(--color-surface-hover, #252D40);
+    color: var(--color-accent-brand, #FF5200);
+    border-color: var(--color-accent-brand, #FF5200);
+  }
+
+  .quick-tone-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid var(--color-border-subtle);
   }
 
-  .tone-slider-group {
+  .card-status-badges {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
   }
 
-  .tone-name {
-    font-size: 10px;
+  .voice-iso-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
     font-weight: 800;
-    color: var(--color-text-secondary);
-    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: var(--radius-sm);
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ADE80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    letter-spacing: 0.3px;
   }
 
-  .tone-slider {
-    appearance: none;
-    -webkit-appearance: none;
-    height: 5px;
-    background: var(--color-surface-3);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-  }
-  .tone-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .tone-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .tone-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .tone-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
-  }
-
-  .tone-val {
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-primary);
+  .dsp-slider-wrapper {
+    margin-top: 6px;
   }
 
   .dsp-grid {
@@ -1019,68 +1019,6 @@
     background: var(--color-accent-brand-subtle);
     color: var(--color-channel-mic);
     border-color: var(--color-channel-mic);
-  }
-
-  .dsp-control-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .dsp-sublabel {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    width: 65px;
-  }
-
-  .dsp-slider {
-    flex: 1;
-    appearance: none;
-    -webkit-appearance: none;
-    height: 5px;
-    background: var(--color-surface-3);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-  }
-  .dsp-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .dsp-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .dsp-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .dsp-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
-  }
-
-  .dsp-val {
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-    width: 65px;
-    text-align: end;
   }
 
   .dsp-presets-row {
@@ -1129,15 +1067,14 @@
   .dsp-card.is-disabled {
     opacity: 0.55;
   }
-  .dsp-card.is-disabled .dsp-pill,
-  .dsp-card.is-disabled .dsp-slider {
+  .dsp-card.is-disabled .dsp-pill {
     cursor: not-allowed;
   }
 
   .dsp-controls-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   .dsp-meter-row {
@@ -1180,5 +1117,98 @@
     background: var(--color-accent-info-subtle);
     color: var(--color-accent-info);
     border: 1px solid var(--color-accent-info);
+  }
+
+  .custom-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .custom-modal-box {
+    background: var(--color-surface-1, #11151F);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    border-radius: var(--radius-lg, 8px);
+    box-shadow: var(--shadow-depth-lg, 0 6px 20px rgba(0,0,0,0.55));
+    width: 380px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary, #F8FAFC);
+  }
+
+  .modal-desc {
+    font-size: 0.775rem;
+    color: var(--color-neutral-400, #94A3B8);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .custom-name-input {
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-default, #1F2637);
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px 12px;
+    color: var(--color-text-primary, #F8FAFC);
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color var(--transition-fast, 120ms);
+  }
+
+  .custom-name-input:focus {
+    border-color: var(--color-accent-brand, #FF5200);
+  }
+
+  .modal-btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .btn-cancel {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm, 4px);
+    background: transparent;
+    border: 1px solid var(--color-border-default, #1F2637);
+    color: var(--color-neutral-400, #94A3B8);
+    font-size: 0.775rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-confirm {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-accent-brand, #FF5200);
+    border: none;
+    color: #ffffff;
+    font-size: 0.775rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition-fast, 120ms);
+  }
+
+  .btn-confirm:hover {
+    opacity: 0.9;
   }
 </style>

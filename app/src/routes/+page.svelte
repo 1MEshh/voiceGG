@@ -337,6 +337,7 @@
         <MicTab
           currentPreset={currentPresetObj}
           {allPresets}
+          favoritePresets={status.config.favorite_presets?.['mic'] || []}
           devices={status.devices}
           preferredInputDevice={status.config.preferred_input_device}
           micMonitorEnabled={status.mic_monitor_enabled}
@@ -347,6 +348,8 @@
           onOpenBrowser={() => openPresetBrowser('mic')}
           onSetDevice={handleSetDevice}
           onSetMicMonitor={handleSetMicMonitor}
+          onToggleFavorite={(presetId) => handleToggleFavorite('mic', presetId)}
+          onSaveCustomPreset={(ch, p) => handleSaveCustomPreset(ch, p)}
         />
       {/if}
     {:else}
