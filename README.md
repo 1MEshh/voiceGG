@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1MEshh/voiceGG/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/Release-v2.0.0%20(Sonar%20Edition)-FF5200?style=for-the-badge&logo=rocket" alt="Release 2.0.0" /></a>
+  <a href="https://github.com/1MEshh/voiceGG/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/Release-v3.0.0%20(Sonar%20Edition)-FF5200?style=for-the-badge&logo=rocket" alt="Release 3.0.0" /></a>
   <a href="https://github.com/1MEshh/voiceGG"><img src="https://img.shields.io/badge/SteelSeries%20Sonar-Linux%20Alternative-FF5200?style=for-the-badge&logo=linux&logoColor=white" alt="SteelSeries Sonar Alternative" /></a>
   <img src="https://img.shields.io/badge/Language-Rust%202021-orange?style=for-the-badge&logo=rust" alt="Rust" />
   <img src="https://img.shields.io/badge/Audio%20Server-PipeWire%20Native-blue?style=for-the-badge&logo=buffer" alt="PipeWire Native" />
@@ -128,9 +128,12 @@ Studio-grade microphone processing suite running directly inside the PipeWire au
 | **Telemetry & Tracking** | **Zero (0%) — 100% Offline & Private** | Constant cloud telemetry | None |
 | **Dedicated Channels** | **5 (Master, Game, Chat, Media, Aux, Mic)** | 5 channels | Manual wire patching |
 | **Drag & Drop App Routing** | **Yes (Automatic & Persistent)** | Yes | No (Manual wire links) |
+| **Streamer Mode (Dual-Bus)** | **Yes (Personal Headphone vs Stream Mix)** | Yes (Sonar Streamer) | No |
 | **ChatMix Balance** | **Yes (Hotkeys, GUI & Waybar module)** | Yes (SteelSeries hardware or GUI) | No |
-| **10-Band Parametric EQ** | **Yes (Interactive Canvas + Presets)** | Yes | Requires third-party plugins |
+| **10-Band Parametric EQ** | **Yes (Interactive Canvas + RBJ Biquad Math)** | Yes | Requires third-party plugins |
+| **AI Voice Isolation** | **Yes (NVIDIA Broadcast-grade VAD envelope)** | Yes (ClearCast AI) | Basic RNNoise only |
 | **Live Voice Monitoring** | **Yes (Feedback-safe loopback + volume control)** | Yes | Manual loopback creation |
+| **Safe Lifecycle Teardown** | **Yes (100% cleanup on SIGTERM / btop kill)** | System driver hook | Leaves dangling ghost nodes |
 | **Arabic & RTL Localization** | **Yes (Full RTL layout + Thmanyah typography)** | Partial / LTR only | No |
 | **Emergency Audio Reset (Panic)** | **Yes (1-click restore to hardware defaults)** | Reinstall driver | Restart pipewire |
 

@@ -312,4 +312,28 @@ mod tests {
         let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(req, decoded);
     }
+
+    #[test]
+    fn test_sonar_3_protocol_requests_serialization() {
+        let req_streamer = IpcRequest::SetStreamerMode { enabled: true };
+        assert_eq!(req_streamer, serde_json::from_str(&serde_json::to_string(&req_streamer).unwrap()).unwrap());
+
+        let req_pmix = IpcRequest::SetPersonalMix { channel: ChannelId::Media, enabled: false };
+        assert_eq!(req_pmix, serde_json::from_str(&serde_json::to_string(&req_pmix).unwrap()).unwrap());
+
+        let req_smix = IpcRequest::SetStreamMix { channel: ChannelId::Chat, enabled: true };
+        assert_eq!(req_smix, serde_json::from_str(&serde_json::to_string(&req_smix).unwrap()).unwrap());
+
+        let req_fav = IpcRequest::ToggleFavoritePreset { channel: ChannelId::Game, preset_id: "game_cs2".to_string() };
+        assert_eq!(req_fav, serde_json::from_str(&serde_json::to_string(&req_fav).unwrap()).unwrap());
+
+        let req_color = IpcRequest::SetChannelColor { channel: ChannelId::Mic, hex: "#FF0077".to_string() };
+        assert_eq!(req_color, serde_json::from_str(&serde_json::to_string(&req_color).unwrap()).unwrap());
+
+        let req_quantum = IpcRequest::SetQuantum { quantum: 128 };
+        assert_eq!(req_quantum, serde_json::from_str(&serde_json::to_string(&req_quantum).unwrap()).unwrap());
+
+        let req_del = IpcRequest::DeleteCustomPreset { preset_id: "custom_123".to_string() };
+        assert_eq!(req_del, serde_json::from_str(&serde_json::to_string(&req_del).unwrap()).unwrap());
+    }
 }
