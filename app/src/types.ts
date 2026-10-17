@@ -1,5 +1,7 @@
 // TypeScript definitions mirroring VoiceGG Rust backend structures
 
+export type { SelectOption } from './lib/CustomSelect.svelte';
+
 export type ChannelId = 'master' | 'game' | 'chat' | 'media' | 'aux' | 'mic';
 
 export interface AudioDevice {
