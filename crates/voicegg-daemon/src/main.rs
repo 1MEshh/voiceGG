@@ -412,6 +412,18 @@ impl RequestHandler for DaemonHandler {
                 tracing::info!("Deleted custom preset '{}'", preset_id);
                 IpcResponse::Success
             }
+            IpcRequest::SetQuantum { quantum } => {
+                {
+                    let mut cfg = self.config.write().unwrap();
+                    cfg.buffer_quantum = quantum;
+                }
+                let _ = std::process::Command::new("pw-metadata")
+                    .args(["-n", "settings", "0", "clock.force-quantum", &quantum.to_string()])
+                    .status();
+                self.dirty.store(true, Ordering::Relaxed);
+                tracing::info!("Buffer quantum set to {}", quantum);
+                IpcResponse::Success
+            }
         }
     }
 }

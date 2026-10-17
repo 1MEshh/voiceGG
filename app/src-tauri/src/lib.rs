@@ -394,6 +394,18 @@ async fn delete_custom_preset(
     }
 }
 
+#[tauri::command]
+async fn set_quantum(quantum: u32, state: State<'_, IpcState>) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetQuantum { quantum })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -601,7 +613,8 @@ pub fn run() {
             toggle_favorite_preset,
             set_channel_color,
             save_custom_preset,
-            delete_custom_preset
+            delete_custom_preset,
+            set_quantum
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

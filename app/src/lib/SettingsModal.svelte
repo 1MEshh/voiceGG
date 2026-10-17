@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { SystemStatus } from '../types';
+  import type { SystemStatus, ChannelId } from '../types';
   import { CHANNELS } from './theme';
+  import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
   import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu, Globe, Hash } from '@lucide/svelte';
   import { t, locale, numerals, setLanguage } from './i18n';
 
@@ -9,8 +10,24 @@
   export let onClose: () => void;
   export let onPanicReset: () => void;
   export let onToggleAutoDetect: (enabled: boolean) => void;
+  export let onSetQuantum: ((quantum: number) => void) | undefined = undefined;
+  export let onSetChannelColor: ((channel: string, color: string) => void) | undefined = undefined;
 
   let autoDetect = status.config.auto_game_detection ?? true;
+
+  const quantumOptions: SelectOption[] = [
+    { value: '64', label: '64 Samples (1.3 ms — Ultra-Low Latency)' },
+    { value: '128', label: '128 Samples (2.6 ms — Competitive Gaming)' },
+    { value: '256', label: '256 Samples (5.3 ms — Balanced Pro Audio)' },
+    { value: '512', label: '512 Samples (10.6 ms — High Stability)' },
+    { value: '1024', label: '1024 Samples (21.3 ms — Maximum Buffer)' },
+  ];
+
+  $: currentQuantum = String(status.config.buffer_quantum || 256);
+
+  function getChannelColor(chId: string, defaultColor: string): string {
+    return status.config.theme?.channels?.[chId as ChannelId]?.accent_hex || defaultColor;
+  }
 </script>
 
 {#if isOpen}
@@ -119,7 +136,14 @@
               <span class="card-label">{$t('settings.low_latency_quantum')}</span>
               <span class="card-desc">{$t('settings.low_latency_desc')}</span>
             </div>
-            <span class="badge quantum-badge">{$t('settings.quantum_value')}</span>
+            <div class="quantum-select-wrapper">
+              <CustomSelect
+                value={currentQuantum}
+                options={quantumOptions}
+                size="sm"
+                onChange={(val) => onSetQuantum?.(Number(val))}
+              />
+            </div>
           </div>
         </div>
 
@@ -155,14 +179,19 @@
           <div class="color-pickers-grid">
             {#each Object.entries(CHANNELS) as [id, info]}
               {@const label = $t(`channels.${id}`) || info.label}
+              {@const color = getChannelColor(id, info.defaultColor)}
               <div class="color-item">
                 <span class="color-label">{label}</span>
-                <input
-                  type="color"
-                  aria-label={$t('settings.color_aria', { channel: label })}
-                  value={info.defaultColor}
-                  class="color-input"
-                />
+                <div class="color-input-wrapper">
+                  <input
+                    type="color"
+                    aria-label={$t('settings.color_aria', { channel: label })}
+                    value={color}
+                    class="color-input"
+                    on:input={(e) => onSetChannelColor?.(id, e.currentTarget.value)}
+                  />
+                  <span class="color-hex tabular-nums">{color.toUpperCase()}</span>
+                </div>
               </div>
             {/each}
           </div>
@@ -416,6 +445,23 @@
     color: var(--color-text-secondary);
   }
 
+  .quantum-select-wrapper {
+    width: 260px;
+  }
+
+  .color-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .color-hex {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+  }
+
   .color-input {
     border: 1px solid var(--color-border-bright);
     width: 24px;
@@ -475,12 +521,6 @@
     color: var(--color-accent-brand);
     border-color: var(--color-border-bright);
     box-shadow: var(--shadow-depth-sm);
-  }
-
-  .quantum-badge {
-    background: var(--color-surface-3);
-    border: 1px solid var(--color-border-bright);
-    color: var(--color-accent-info);
   }
 
   .version-row {

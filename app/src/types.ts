@@ -129,6 +129,8 @@ export interface VoiceggConfig {
   favorite_presets?: Partial<Record<ChannelId, string[]>>;
   custom_presets?: Record<string, Preset>;
   theme?: ThemeConfig;
+  buffer_quantum?: number;
+  channel_colors?: Record<string, string>;
 }
 
 export interface PluginCapabilities {

@@ -151,6 +151,11 @@ pub enum IpcRequest {
         /// ID of preset to delete.
         preset_id: String,
     },
+    /// Set low-latency audio buffer quantum (e.g. 64, 128, 256, 512, 1024).
+    SetQuantum {
+        /// Buffer quantum size.
+        quantum: u32,
+    },
 }
 
 /// Responses returned from Daemon to Client.

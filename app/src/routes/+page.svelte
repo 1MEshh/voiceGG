@@ -267,6 +267,43 @@
     }
   }
 
+  async function handleSetQuantum(quantum: number) {
+    status.config.buffer_quantum = quantum;
+    status = { ...status };
+    try {
+      await invoke('set_quantum', { quantum });
+    } catch (e) {
+      console.error('Failed to set quantum:', e);
+    }
+  }
+
+  async function handleSetChannelColor(channel: string, hex: string) {
+    if (!status.config.theme) {
+      status.config.theme = {
+        name: 'Sonar Dark',
+        background_hex: '#0B0E14',
+        surface_hex: '#11151F',
+        text_primary_hex: '#F8FAFC',
+        channels: {},
+        meter_style: 'segmented',
+        follow_pywal: false,
+      };
+    }
+    if (!status.config.theme.channels) {
+      status.config.theme.channels = {};
+    }
+    status.config.theme.channels[channel as ChannelId] = {
+      accent_hex: hex,
+      secondary_hex: hex,
+    };
+    status = { ...status };
+    try {
+      await invoke('set_channel_color', { channel, hex });
+    } catch (e) {
+      console.error('Failed to set channel color:', e);
+    }
+  }
+
   async function handleSetDevice(type: 'sink' | 'source', deviceName: string) {
     try {
       await invoke('set_audio_device', { deviceType: type, deviceName });
@@ -390,6 +427,8 @@
     onClose={() => isSettingsOpen = false}
     onPanicReset={handlePanicReset}
     onToggleAutoDetect={(val) => status.config.auto_game_detection = val}
+    onSetQuantum={handleSetQuantum}
+    onSetChannelColor={handleSetChannelColor}
   />
 </div>
 
