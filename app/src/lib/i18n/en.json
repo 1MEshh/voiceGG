@@ -52,7 +52,13 @@
     "preset_aria": "Preset: {preset}",
     "route_app_aria": "Route app {name}",
     "app_volume": "App Volume",
-    "app_volume_title": "{name} Volume: {vol}%"
+    "app_volume_title": "{name} Volume: {vol}%",
+    "streamer_mode": "Streamer Mode",
+    "personal_mix": "Personal Mix",
+    "stream_mix": "Stream Mix",
+    "balanced": "BALANCED",
+    "favor_game": "FAVOR GAME",
+    "favor_chat": "FAVOR CHAT"
   },
   "mic": {
     "live_monitoring": "Live Voice Monitoring",
@@ -114,13 +120,18 @@
     "off": "OFF (0%)",
     "low": "LOW (40%)",
     "balanced": "BALANCED (65%)",
-    "max": "MAX (90%)",
+    "max": "MAX (100%)",
     "input_gain": "INPUT GAIN",
-    "input_gain_desc": "Pre-chain microphone preamp gain calibration."
+    "input_gain_desc": "Pre-chain microphone preamp gain calibration.",
+    "save_custom": "SAVE CUSTOM",
+    "save_custom_desc": "Save current microphone EQ curve and DSP tuning into your custom preset library.",
+    "ai_voice_isolation": "AI Voice Isolation Active (NVIDIA Broadcast Mode)"
   },
   "channel_tab": {
     "browse_presets": "BROWSE PRESETS",
     "browse_presets_aria": "Browse {channel} presets",
+    "save_custom": "SAVE CUSTOM",
+    "save_custom_desc": "Save current parametric EQ curve and DSP tuning into your custom preset library.",
     "favorites": "FAVORITES:",
     "select_favorite": "Select favorite {idx}: {name}",
     "add_favorite": "Add {name} to Favorites",
@@ -201,6 +212,6 @@
     "restore_aria": "Restore Audio Defaults",
     "confirm_panic": "Are you sure you want to reset all VoiceGG audio routing to system defaults?",
     "version": "Version",
-    "version_value": "2.0.0 (Sonar Edition)"
+    "version_value": "3.0.0 (Sonar Edition)"
   }
 }

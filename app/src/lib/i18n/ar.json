@@ -52,7 +52,13 @@
     "preset_aria": "الإعداد المسبق: {preset}",
     "route_app_aria": "توجيه تطبيق {name}",
     "app_volume": "مستوى صوت التطبيق",
-    "app_volume_title": "مستوى صوت {name}: {vol}٪"
+    "app_volume_title": "مستوى صوت {name}: {vol}٪",
+    "streamer_mode": "وضع البث",
+    "personal_mix": "مزيج السماعة",
+    "stream_mix": "مزيج البث",
+    "balanced": "متوازن",
+    "favor_game": "أفضلية الألعاب",
+    "favor_chat": "أفضلية المحادثة"
   },
   "mic": {
     "live_monitoring": "مراقبة الصوت المباشرة",
@@ -114,13 +120,18 @@
     "off": "إيقاف (0%)",
     "low": "منخفض (40%)",
     "balanced": "متوازن (65%)",
-    "max": "أقصى (90%)",
+    "max": "أقصى (100%)",
     "input_gain": "كسب الدخل",
-    "input_gain_desc": "معايرة كسب مضخم الميكروفون الأولي قبل المعالجة."
+    "input_gain_desc": "معايرة كسب مضخم الميكروفون الأولي قبل المعالجة.",
+    "save_custom": "حفظ مخصص",
+    "save_custom_desc": "حفظ إعدادات الميكروفون ومعادل الصوت الحالية في مكتبتك المخصصة.",
+    "ai_voice_isolation": "عزل الصوت بالذكاء الاصطناعي (وضع بث إنفيديا)"
   },
   "channel_tab": {
     "browse_presets": "الإعدادات المسبقة",
     "browse_presets_aria": "استعراض إعدادات {channel}",
+    "save_custom": "حفظ مخصص",
+    "save_custom_desc": "حفظ منحنى معادل الصوت البارامتري في مكتبتك المخصصة.",
     "favorites": "المفضلة:",
     "select_favorite": "اختيار المفضلة {idx}: {name}",
     "add_favorite": "إضافة {name} إلى المفضلة",
@@ -201,6 +212,6 @@
     "restore_aria": "استعادة إعدادات الصوت الافتراضية",
     "confirm_panic": "هل أنت متأكد من رغبتك في إعادة ضبط توجيه صوت VoiceGG إلى الإعدادات الافتراضية للنظام؟",
     "version": "الإصدار",
-    "version_value": "2.0.0 (Sonar Edition)"
+    "version_value": "3.0.0 (Sonar Edition)"
   }
 }
