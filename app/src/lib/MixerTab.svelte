@@ -1,14 +1,16 @@
 <script lang="ts">
   import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter, Preset, EqConfig } from '../types';
   import { CHANNELS } from './theme';
-  import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic } from '@lucide/svelte';
+  import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic, Radio } from '@lucide/svelte';
   import { t } from './i18n';
   import CustomSelect from './CustomSelect.svelte';
   import SonarFader from './SonarFader.svelte';
+  import SonarSlider from './SonarSlider.svelte';
   import MiniEqPreview from './MiniEqPreview.svelte';
 
   export let status: SystemStatus;
   export let allPresets: Preset[] = [];
+  export let streamerMode: boolean = false;
   export let micMonitorEnabled: boolean = false;
   export let micMonitorVolume: number = 50;
   export let meters: Record<ChannelId, ChannelMeter> | undefined = undefined;
@@ -20,6 +22,8 @@
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
   export let onSetMicMonitor: ((enabled: boolean, volume: number) => void) | undefined = undefined;
   export let onSetAppVolume: ((binary: string, volume: number) => void) | undefined = undefined;
+  export let onSetPersonalMix: ((channel: ChannelId, enabled: boolean) => void) | undefined = undefined;
+  export let onSetStreamMix: ((channel: ChannelId, enabled: boolean) => void) | undefined = undefined;
 
   let openAppPopover: string | null = null;
   function toggleAppPopover(binary: string) {
@@ -227,6 +231,30 @@
               <Headphones size={15} />
             </button>
           {/if}
+          {#if streamerMode}
+            <div class="streamer-bus-row">
+              <button
+                type="button"
+                class="streamer-bus-btn personal"
+                class:active={status.config.personal_mix?.[ch] ?? true}
+                on:click={() => onSetPersonalMix?.(ch, !(status.config.personal_mix?.[ch] ?? true))}
+                title="Personal Monitor Mix"
+                aria-label="Toggle Personal Mix for {chLabel}"
+              >
+                <Headphones size={13} />
+              </button>
+              <button
+                type="button"
+                class="streamer-bus-btn stream"
+                class:active={status.config.stream_mix?.[ch] ?? true}
+                on:click={() => onSetStreamMix?.(ch, !(status.config.stream_mix?.[ch] ?? true))}
+                title="Stream Broadcast Mix"
+                aria-label="Toggle Stream Broadcast Mix for {chLabel}"
+              >
+                <Radio size={13} />
+              </button>
+            </div>
+          {/if}
         </div>
 
         {#if ch !== 'mic'}
@@ -287,21 +315,34 @@
     {/each}
   </div>
 
-  <div class="chatmix-bar">
-    <span class="chatmix-label game tabular-nums">{$t('mixer.game')} ({100 - Math.max(0, status.config.chatmix)}%)</span>
-    <input
-      type="range"
-      aria-label={$t('mixer.chatmix')}
-      aria-valuenow={status.config.chatmix}
-      aria-valuemin="-100"
-      aria-valuemax="100"
-      min="-100"
-      max="100"
+  <!-- SteelSeries Sonar ChatMix Dock -->
+  <div class="chatmix-dock-card">
+    <div class="chatmix-header">
+      <div class="chatmix-side game">
+        <Gamepad2 size={16} color="var(--color-channel-game, #10B981)" />
+        <span class="side-title">{$t('mixer.game')}</span>
+        <span class="side-pct tabular-nums">{100 - Math.max(0, status.config.chatmix)}%</span>
+      </div>
+      <div class="chatmix-center-badge">
+        <span class="badge-text">{status.config.chatmix === 0 ? 'BALANCED' : status.config.chatmix < 0 ? 'GAME FAVOR' : 'CHAT FAVOR'}</span>
+      </div>
+      <div class="chatmix-side chat">
+        <span class="side-pct tabular-nums">{100 + Math.min(0, status.config.chatmix)}%</span>
+        <span class="side-title">{$t('mixer.chat')}</span>
+        <MessageSquare size={16} color="var(--color-channel-chat, #0EA5E9)" />
+      </div>
+    </div>
+
+    <SonarSlider
       value={status.config.chatmix}
-      on:input={(e) => onSetChatMix(Number(e.currentTarget.value))}
-      class="chatmix-slider"
+      min={-100}
+      max={100}
+      step={1}
+      centerDetent={true}
+      defaultValue={0}
+      accentColor="var(--color-accent-brand, #FF5200)"
+      onChange={(v) => onSetChatMix(v)}
     />
-    <span class="chatmix-label chat tabular-nums">{$t('mixer.chat')} ({100 + Math.min(0, status.config.chatmix)}%)</span>
   </div>
 </div>
 
@@ -611,68 +652,103 @@
     cursor: pointer;
   }
 
-  .chatmix-bar {
-    direction: ltr;
+  .streamer-bus-row {
     display: flex;
     align-items: center;
-    gap: 16px;
-    background: var(--color-surface-1);
+    gap: 4px;
+    margin-inline-start: 4px;
+  }
+
+  .streamer-bus-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm, 4px);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    background: var(--color-surface-2, #161B26);
+    color: var(--color-neutral-500, #64748B);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast, 120ms);
+  }
+
+  .streamer-bus-btn:hover {
+    border-color: var(--color-neutral-400, #94A3B8);
+    color: var(--color-text-primary, #F8FAFC);
+  }
+
+  .streamer-bus-btn.personal.active {
+    background: rgba(14, 165, 233, 0.15);
+    color: var(--color-accent-info, #0EA5E9);
+    border-color: rgba(14, 165, 233, 0.4);
+  }
+
+  .streamer-bus-btn.stream.active {
+    background: rgba(236, 72, 153, 0.15);
+    color: var(--color-channel-media, #EC4899);
+    border-color: rgba(236, 72, 153, 0.4);
+  }
+
+  /* SteelSeries Sonar ChatMix Dock */
+  .chatmix-dock-card {
+    direction: ltr !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--color-surface-1, #11151F);
     padding: 14px 24px;
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-depth-sm);
+    border: 1px solid var(--color-border-default, #1F2637);
+    border-radius: var(--radius-lg, 8px);
+    box-shadow: var(--shadow-depth-sm, 0 1px 2px rgba(0,0,0,0.3));
   }
 
-  .chatmix-label {
-    font-size: 11px;
+  .chatmix-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .chatmix-side {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .side-title {
+    font-size: 0.8rem;
     font-weight: 800;
-    font-family: var(--font-sans);
-    letter-spacing: 0.5px;
-  }
-  .chatmix-label.game {
-    color: var(--color-channel-game);
-  }
-  .chatmix-label.chat {
-    color: var(--color-channel-chat);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
-  .chatmix-slider {
-    flex: 1;
-    height: 6px;
-    background: var(--color-surface-3);
-    border: 1px solid var(--color-border-default);
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-    border-radius: var(--radius-sm);
-  }
-  .chatmix-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 18px;
-    height: 24px;
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .chatmix-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
+  .chatmix-side.game .side-title {
+    color: var(--color-channel-game, #10B981);
   }
 
-  .chatmix-slider::-moz-range-thumb {
-    width: 18px;
-    height: 24px;
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
+  .chatmix-side.chat .side-title {
+    color: var(--color-channel-chat, #0EA5E9);
   }
-  .chatmix-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
+
+  .side-pct {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--color-neutral-400, #94A3B8);
+  }
+
+  .chatmix-center-badge {
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    border-radius: var(--radius-sm, 4px);
+    padding: 2px 8px;
+  }
+
+  .badge-text {
+    font-size: 0.65rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--color-accent-brand, #FF5200);
+    letter-spacing: 0.05em;
   }
 </style>

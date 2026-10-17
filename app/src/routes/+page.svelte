@@ -163,6 +163,38 @@
     }
   }
 
+  async function handleToggleStreamer() {
+    streamerMode = !streamerMode;
+    status.config.streamer_mode = streamerMode;
+    try {
+      await invoke('set_streamer_mode', { enabled: streamerMode });
+    } catch (e) {
+      console.error('Failed to set streamer mode:', e);
+    }
+  }
+
+  async function handleSetPersonalMix(channel: ChannelId, enabled: boolean) {
+    if (!status.config.personal_mix) status.config.personal_mix = {};
+    status.config.personal_mix[channel] = enabled;
+    status = { ...status };
+    try {
+      await invoke('set_personal_mix', { channel, enabled });
+    } catch (e) {
+      console.error('Failed to set personal mix:', e);
+    }
+  }
+
+  async function handleSetStreamMix(channel: ChannelId, enabled: boolean) {
+    if (!status.config.stream_mix) status.config.stream_mix = {};
+    status.config.stream_mix[channel] = enabled;
+    status = { ...status };
+    try {
+      await invoke('set_stream_mix', { channel, enabled });
+    } catch (e) {
+      console.error('Failed to set stream mix:', e);
+    }
+  }
+
   async function handleApplyPreset(preset: Preset) {
     const ch = activeTab === 'mixer' ? browserTargetChannel : activeTab;
     status.config.active_presets[ch] = preset.id;
@@ -244,7 +276,7 @@
     {streamerMode}
     onSelectTab={(tab) => activeTab = tab}
     onOpenSettings={() => isSettingsOpen = true}
-    onToggleStreamer={() => streamerMode = !streamerMode}
+    onToggleStreamer={handleToggleStreamer}
     onPanicReset={handlePanicReset}
   />
 
@@ -253,6 +285,7 @@
       <MixerTab
         {status}
         {allPresets}
+        {streamerMode}
         micMonitorEnabled={status.mic_monitor_enabled}
         micMonitorVolume={status.mic_monitor_volume}
         {meters}
@@ -264,6 +297,8 @@
         onSetDevice={handleSetDevice}
         onSetMicMonitor={handleSetMicMonitor}
         onSetAppVolume={handleSetAppVolume}
+        onSetPersonalMix={handleSetPersonalMix}
+        onSetStreamMix={handleSetStreamMix}
       />
     {:else if activeTab === 'mic'}
       {#if currentPresetObj}
