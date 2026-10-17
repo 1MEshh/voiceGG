@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { EqConfig, EqBand, FilterType } from '../types';
+  import type { EqConfig, EqBand, FilterType, ChannelMeter } from '../types';
+  import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
 
   export let eqConfig: EqConfig;
+  export let meter: ChannelMeter | undefined = undefined;
   export let accentColor: string = '#22c55e';
   export let onChange: (config: EqConfig) => void;
 
@@ -234,6 +236,25 @@
       ctx.fillText(label, x, height - 6);
     }
 
+    // 3.5. Live RTA Spectrum Analyzer Backdrop
+    if (meter && meter.rms_dbfs > -60) {
+      const numBars = 48;
+      const barWidth = width / numBars;
+      const signalNorm = Math.max(0, Math.min(1, (meter.rms_dbfs + 60) / 60));
+      for (let i = 0; i < numBars; i++) {
+        const barX = i * barWidth;
+        const centerWeight = Math.sin((i / numBars) * Math.PI);
+        const barHeight = Math.max(3, signalNorm * (height * 0.5) * (0.35 + 0.65 * centerWeight));
+        const barY = height - barHeight;
+
+        ctx.fillStyle = `${accentColor}18`;
+        ctx.fillRect(barX + 1, barY, barWidth - 2, barHeight);
+
+        ctx.fillStyle = `${accentColor}40`;
+        ctx.fillRect(barX + 1, barY, barWidth - 2, 2);
+      }
+    }
+
     // 4. Draw EQ response curve
     const step = 2;
     ctx.beginPath();
@@ -397,48 +418,183 @@
     }
   }
 
+  const filterTypeOptions: SelectOption[] = [
+    { value: 'peak', label: 'Peak' },
+    { value: 'low_shelf', label: 'Low Shelf' },
+    { value: 'high_shelf', label: 'High Shelf' },
+    { value: 'high_pass', label: 'High Pass' },
+    { value: 'low_pass', label: 'Low Pass' },
+  ];
+
+  function handleFilterTypeChange(index: number, type: FilterType) {
+    if (index >= 0 && index < eqConfig.bands.length) {
+      eqConfig.bands[index].filter_type = type;
+      draw();
+      onChange(eqConfig);
+    }
+  }
+
+  function toggleBandEnabled(index: number) {
+    if (index >= 0 && index < eqConfig.bands.length) {
+      eqConfig.bands[index].enabled = !eqConfig.bands[index].enabled;
+      draw();
+      onChange(eqConfig);
+    }
+  }
+
   onMount(() => {
     draw();
     window.addEventListener('resize', draw);
     return () => window.removeEventListener('resize', draw);
   });
 
-  $: if (eqConfig || accentColor) {
+  $: if (eqConfig || accentColor || meter) {
     draw();
   }
 </script>
 
-<div class="eq-graph-container">
-  <canvas
-    bind:this={canvas}
-    on:mousedown={handleMouseDown}
-    on:mousemove={handleMouseMove}
-    on:mouseup={handleMouseUp}
-    on:mouseleave={handleMouseUp}
-    on:dblclick={handleDoubleClick}
-    on:wheel={handleWheel}
-  ></canvas>
+<div class="eq-component-wrapper">
+  <div class="eq-graph-container">
+    <canvas
+      bind:this={canvas}
+      on:mousedown={handleMouseDown}
+      on:mousemove={handleMouseMove}
+      on:mouseup={handleMouseUp}
+      on:mouseleave={handleMouseUp}
+      on:dblclick={handleDoubleClick}
+      on:wheel={handleWheel}
+    ></canvas>
 
-  {#if selectedBandIndex !== null}
-    {@const b = eqConfig.bands[selectedBandIndex]}
-    <div class="inspector-badge">
-      <span class="badge-title">BAND {selectedBandIndex + 1}</span>
-      <span class="badge-val">{b.freq_hz >= 1000 ? (b.freq_hz / 1000).toFixed(1) + ' kHz' : b.freq_hz + ' Hz'}</span>
-      <span class="badge-val">{b.gain_db > 0 ? '+' : ''}{b.gain_db.toFixed(1)} dB</span>
-      <span class="badge-val">Q: {b.q.toFixed(2)}</span>
+    {#if selectedBandIndex !== null}
+      {@const b = eqConfig.bands[selectedBandIndex]}
+      <div class="inspector-badge">
+        <span class="badge-title">BAND {selectedBandIndex + 1}</span>
+        <span class="badge-val">{b.freq_hz >= 1000 ? (b.freq_hz / 1000).toFixed(1) + ' kHz' : b.freq_hz + ' Hz'}</span>
+        <span class="badge-val">{b.gain_db > 0 ? '+' : ''}{b.gain_db.toFixed(1)} dB</span>
+        <span class="badge-val">Q: {b.q.toFixed(2)}</span>
+      </div>
+    {/if}
+  </div>
+
+  <!-- 10-Band Parameter Inspector Table -->
+  <div class="eq-table-card">
+    <div class="table-header-title">
+      <span class="table-title">PARAMETRIC EQUALIZER BANDS</span>
+      <span class="table-hint">Double-click node to reset • Mouse wheel adjusts Q</span>
     </div>
-  {/if}
+
+    <div class="table-scroll-container">
+      <table class="eq-bands-table">
+        <thead>
+          <tr>
+            <th class="th-num">#</th>
+            <th class="th-type">TYPE</th>
+            <th class="th-freq">FREQ</th>
+            <th class="th-gain">GAIN</th>
+            <th class="th-q">Q</th>
+            <th class="th-bypass">STATE</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each eqConfig.bands as band, i}
+            <tr
+              class="band-row"
+              class:is-selected={selectedBandIndex === i}
+              class:is-bypassed={!band.enabled}
+              on:click={() => { selectedBandIndex = i; draw(); }}
+            >
+              <td class="col-num">
+                <span
+                  class="num-dot"
+                  style="background-color: {band.enabled ? accentColor : 'var(--color-neutral-500, #64748B)'};"
+                ></span>
+                <span class="num-text">{i + 1}</span>
+              </td>
+              <td class="col-type" on:click|stopPropagation>
+                <CustomSelect
+                  size="sm"
+                  value={band.filter_type}
+                  options={filterTypeOptions}
+                  onChange={(val) => handleFilterTypeChange(i, val as FilterType)}
+                />
+              </td>
+              <td class="col-freq" on:click|stopPropagation>
+                <div class="num-input-wrap">
+                  <input
+                    type="number"
+                    min="20"
+                    max="20000"
+                    step="1"
+                    class="table-num-input"
+                    bind:value={band.freq_hz}
+                    on:input={() => { draw(); onChange(eqConfig); }}
+                  />
+                  <span class="unit">Hz</span>
+                </div>
+              </td>
+              <td class="col-gain" on:click|stopPropagation>
+                <div class="num-input-wrap">
+                  <input
+                    type="number"
+                    min="-12"
+                    max="12"
+                    step="0.5"
+                    class="table-num-input"
+                    bind:value={band.gain_db}
+                    on:input={() => { draw(); onChange(eqConfig); }}
+                  />
+                  <span class="unit">dB</span>
+                </div>
+              </td>
+              <td class="col-q" on:click|stopPropagation>
+                <div class="num-input-wrap">
+                  <input
+                    type="number"
+                    min="0.2"
+                    max="10"
+                    step="0.1"
+                    class="table-num-input"
+                    bind:value={band.q}
+                    on:input={() => { draw(); onChange(eqConfig); }}
+                  />
+                </div>
+              </td>
+              <td class="col-bypass" on:click|stopPropagation>
+                <button
+                  type="button"
+                  class="band-toggle-btn"
+                  class:active={band.enabled}
+                  on:click={() => toggleBandEnabled(i)}
+                  title={band.enabled ? 'Bypass Band' : 'Enable Band'}
+                >
+                  {band.enabled ? 'ACTIVE' : 'BYPASS'}
+                </button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <style>
+  .eq-component-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    font-family: var(--font-sans);
+  }
+
   .eq-graph-container {
     position: relative;
     width: 100%;
-    height: 240px;
-    background: var(--color-surface-1);
-    border-radius: var(--radius-md);
+    height: 220px;
+    background: var(--color-surface-1, #11151F);
+    border-radius: var(--radius-md, 6px);
     overflow: hidden;
-    border: 1px solid var(--color-border-default);
+    border: 1px solid var(--color-border-default, #1F2637);
   }
 
   canvas {
@@ -457,23 +613,169 @@
     gap: 8px;
     background: rgba(17, 21, 31, 0.9);
     backdrop-filter: blur(6px);
-    border: 1px solid var(--color-border-bright);
+    border: 1px solid var(--color-border-bright, #2A344A);
     padding: 4px 10px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-sm, 4px);
     font-size: 11px;
-    font-family: var(--font-sans);
     user-select: none;
-    box-shadow: var(--shadow-depth-sm);
+    box-shadow: var(--shadow-depth-sm, 0 1px 2px rgba(0,0,0,0.3));
   }
 
   .badge-title {
     font-weight: 700;
-    color: var(--color-text-secondary);
+    color: var(--color-text-secondary, #94A3B8);
   }
 
   .badge-val {
     font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary, #F8FAFC);
+  }
+
+  /* Table Card */
+  .eq-table-card {
+    background: var(--color-surface-1, #11151F);
+    border: 1px solid var(--color-border-default, #1F2637);
+    border-radius: var(--radius-md, 6px);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .table-header-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .table-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-neutral-300, #CBD5E1);
+  }
+
+  .table-hint {
+    font-size: 0.7rem;
+    color: var(--color-neutral-500, #64748B);
+  }
+
+  .table-scroll-container {
+    overflow-x: auto;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .eq-bands-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.775rem;
+  }
+
+  .eq-bands-table th {
+    text-align: left;
+    padding: 6px 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--color-neutral-500, #64748B);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border-default, #1F2637);
+  }
+
+  .eq-bands-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--color-border-subtle, #1C2230);
+    vertical-align: middle;
+  }
+
+  .band-row {
+    cursor: pointer;
+    transition: background var(--transition-fast, 120ms);
+  }
+
+  .band-row:hover {
+    background: var(--color-surface-hover, #252D40);
+  }
+
+  .band-row.is-selected {
+    background: rgba(255, 82, 0, 0.08);
+  }
+
+  .band-row.is-bypassed {
+    opacity: 0.45;
+  }
+
+  .col-num {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+
+  .num-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .col-type {
+    width: 130px;
+  }
+
+  .num-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-default, #1F2637);
+    border-radius: var(--radius-sm, 4px);
+    padding: 3px 6px;
+    width: 75px;
+  }
+
+  .table-num-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--color-text-primary, #F8FAFC);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    padding: 0;
+  }
+
+  .unit {
+    font-size: 0.65rem;
+    color: var(--color-neutral-500, #64748B);
+    font-family: var(--font-mono);
+  }
+
+  .band-toggle-btn {
+    padding: 3px 8px;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    background: var(--color-surface-2, #161B26);
+    color: var(--color-neutral-400, #94A3B8);
+    cursor: pointer;
+    transition: all var(--transition-fast, 120ms);
+  }
+
+  .band-toggle-btn.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--color-accent-success, #10B981);
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+
+  .band-toggle-btn:hover {
+    border-color: var(--color-neutral-400, #94A3B8);
   }
 </style>
