@@ -1,23 +1,33 @@
 <script lang="ts">
-  import type { ChannelId, Preset } from '../types';
+  import type { ChannelId, Preset, ChannelMeter } from '../types';
   import { CHANNELS } from './theme';
   import EqGraph from './EqGraph.svelte';
-  import { Search, Star, Sliders, Waves, Sparkles, Volume2 } from '@lucide/svelte';
+  import SonarSlider from './SonarSlider.svelte';
+  import { Search, Star, Sliders, Waves, Sparkles, Volume2, BookmarkPlus, Check, X } from '@lucide/svelte';
   import { t } from './i18n';
 
   export let channel: ChannelId;
   export let currentPreset: Preset;
   export let allPresets: Preset[];
+  export let favoritePresets: string[] = [];
+  export let meter: ChannelMeter | undefined = undefined;
   export let onApplyPreset: (preset: Preset) => void;
   export let onOpenBrowser: () => void;
   export let onChangeEq: (eq: Preset['eq']) => void;
+  export let onToggleFavorite: ((presetId: string) => void) | undefined = undefined;
+  export let onSaveCustomPreset: ((channel: ChannelId, preset: Preset) => void) | undefined = undefined;
 
   const info = CHANNELS[channel];
 
-  let spatialEnabled = false;
-  let spatialDistance = 50;
-  let smartVolume = 'balanced';
-  let chatNoiseAmount = currentPreset.noise_canceller?.amount ?? 60;
+  let isSavingCustom = false;
+  let customPresetName = '';
+
+  $: if (!currentPreset.spatial) {
+    currentPreset.spatial = { enabled: false, immersion_pct: 50 };
+  }
+  $: if (!currentPreset.smart_volume) {
+    currentPreset.smart_volume = { enabled: false, mode: 'balanced' };
+  }
 
   function handleToneChange(type: 'bass' | 'voice' | 'treble', val: number) {
     if (type === 'bass') currentPreset.eq.bass_db = val;
@@ -33,8 +43,29 @@
     onApplyPreset(currentPreset);
   }
 
+  function openSaveCustomModal() {
+    customPresetName = currentPreset.name + ' (Custom)';
+    isSavingCustom = true;
+  }
+
+  function handleConfirmSaveCustom() {
+    const trimmed = customPresetName.trim();
+    if (!trimmed) return;
+    const newPreset: Preset = {
+      ...JSON.parse(JSON.stringify(currentPreset)),
+      id: `custom_${Date.now()}`,
+      name: trimmed,
+      description: `Custom tuned preset for ${channel}`,
+      category: 'custom',
+    };
+    if (onSaveCustomPreset) {
+      onSaveCustomPreset(channel, newPreset);
+    }
+    isSavingCustom = false;
+  }
+
   // Filter presets for this channel's category
-  $: categoryPresets = allPresets.filter(p => p.category === channel);
+  $: categoryPresets = allPresets.filter(p => p.category === channel || p.category === 'custom');
 </script>
 
 <div class="channel-view">
@@ -47,18 +78,35 @@
       <div class="preset-titles">
         <div class="preset-title-row">
           <span class="preset-name">{currentPreset.name}</span>
-          <button class="star-btn" aria-label={$t('channel_tab.add_favorite', { name: currentPreset.name })} title={$t('channel_tab.add_favorite', { name: currentPreset.name })}>
-            <Star size={14} fill="#eab308" color="#eab308" />
+          <button
+            class="star-btn"
+            class:is-fav={favoritePresets.includes(currentPreset.id)}
+            aria-label={$t('channel_tab.add_favorite', { name: currentPreset.name })}
+            title={favoritePresets.includes(currentPreset.id) ? 'Remove Favorite' : 'Add Favorite'}
+            on:click={() => onToggleFavorite?.(currentPreset.id)}
+          >
+            <Star
+              size={15}
+              fill={favoritePresets.includes(currentPreset.id) ? '#eab308' : 'none'}
+              color={favoritePresets.includes(currentPreset.id) ? '#eab308' : '#64748B'}
+            />
           </button>
         </div>
         <span class="preset-desc">{currentPreset.description}</span>
       </div>
     </div>
 
-    <button class="browse-btn" aria-label={$t('channel_tab.browse_presets_aria', { channel: $t(`channels.${channel}`) })} on:click={onOpenBrowser}>
-      <Search size={14} />
-      <span>{$t('channel_tab.browse_presets')}</span>
-    </button>
+    <div class="preset-actions-right">
+      <button class="save-custom-btn" on:click={openSaveCustomModal} title="Save current settings as new custom preset">
+        <BookmarkPlus size={14} />
+        <span>Save Custom</span>
+      </button>
+
+      <button class="browse-btn" aria-label={$t('channel_tab.browse_presets_aria', { channel: $t(`channels.${channel}`) })} on:click={onOpenBrowser}>
+        <Search size={14} />
+        <span>{$t('channel_tab.browse_presets')}</span>
+      </button>
+    </div>
   </div>
 
   <!-- Favorites Strip (1 to 7 slots) -->
@@ -114,9 +162,10 @@
         </div>
       </div>
 
-      <!-- Canvas Graph -->
+      <!-- Canvas Graph with live RTA spectrum & 10-band inspector table -->
       <EqGraph
         eqConfig={currentPreset.eq}
+        {meter}
         accentColor={info.defaultColor}
         onChange={(eq) => {
           currentPreset.eq = eq;
@@ -128,63 +177,54 @@
       <!-- Quick Tone Sliders -->
       <div class="quick-tone-row">
         <div class="tone-slider-group">
-          <span class="tone-name">{$t('channel_tab.bass_depth')}</span>
-          <input
-            type="range"
-            aria-label={$t('channel_tab.bass_aria')}
-            aria-valuenow={currentPreset.eq.bass_db}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            bind:value={currentPreset.eq.bass_db}
-            on:input={(e) => handleToneChange('bass', Number(e.currentTarget.value))}
-            class="tone-slider"
+          <SonarSlider
+            label={$t('channel_tab.bass_depth')}
+            value={currentPreset.eq.bass_db}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={info.defaultColor}
+            onChange={(v) => handleToneChange('bass', v)}
           />
-          <span class="tone-val tabular-nums">{currentPreset.eq.bass_db > 0 ? '+' : ''}{currentPreset.eq.bass_db} dB</span>
         </div>
 
         <div class="tone-slider-group">
-          <span class="tone-name">{$t('channel_tab.vocal_clarity')}</span>
-          <input
-            type="range"
-            aria-label={$t('channel_tab.voice_aria')}
-            aria-valuenow={currentPreset.eq.voice_db}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            bind:value={currentPreset.eq.voice_db}
-            on:input={(e) => handleToneChange('voice', Number(e.currentTarget.value))}
-            class="tone-slider"
+          <SonarSlider
+            label={$t('channel_tab.vocal_clarity')}
+            value={currentPreset.eq.voice_db}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={info.defaultColor}
+            onChange={(v) => handleToneChange('voice', v)}
           />
-          <span class="tone-val tabular-nums">{currentPreset.eq.voice_db > 0 ? '+' : ''}{currentPreset.eq.voice_db} dB</span>
         </div>
 
         <div class="tone-slider-group">
-          <span class="tone-name">{$t('channel_tab.crisp_air')}</span>
-          <input
-            type="range"
-            aria-label={$t('channel_tab.treble_aria')}
-            aria-valuenow={currentPreset.eq.treble_db}
-            aria-valuemin="-12"
-            aria-valuemax="12"
-            min="-12"
-            max="12"
-            step="0.5"
-            bind:value={currentPreset.eq.treble_db}
-            on:input={(e) => handleToneChange('treble', Number(e.currentTarget.value))}
-            class="tone-slider"
+          <SonarSlider
+            label={$t('channel_tab.crisp_air')}
+            value={currentPreset.eq.treble_db}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={info.defaultColor}
+            onChange={(v) => handleToneChange('treble', v)}
           />
-          <span class="tone-val tabular-nums">{currentPreset.eq.treble_db > 0 ? '+' : ''}{currentPreset.eq.treble_db} dB</span>
         </div>
       </div>
     </div>
 
     <!-- Channel Specific Cards -->
-    {#if channel === 'game'}
+    {#if channel === 'game' && currentPreset.spatial}
       <div class="card">
         <div class="card-header">
           <div class="card-title">
@@ -192,7 +232,12 @@
             <span>{$t('channel_tab.spatial_audio')}</span>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" aria-label={$t('channel_tab.toggle_spatial_aria')} bind:checked={spatialEnabled} />
+            <input
+              type="checkbox"
+              aria-label={$t('channel_tab.toggle_spatial_aria')}
+              bind:checked={currentPreset.spatial.enabled}
+              on:change={() => onApplyPreset(currentPreset)}
+            />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -200,69 +245,159 @@
           {$t('channel_tab.spatial_audio_desc')}
         </p>
         <div class="control-row">
-          <span class="control-label">{$t('channel_tab.immersion_distance')}</span>
-          <input
-            type="range"
-            aria-label={$t('channel_tab.immersion_distance')}
-            aria-valuenow={spatialDistance}
-            aria-valuemin="0"
-            aria-valuemax="100"
-            min="0"
-            max="100"
-            bind:value={spatialDistance}
-            class="effect-slider"
+          <SonarSlider
+            label={$t('channel_tab.immersion_distance')}
+            value={currentPreset.spatial.immersion_pct}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            accentColor="var(--color-channel-game)"
+            disabled={!currentPreset.spatial.enabled}
+            onChange={(v) => {
+              if (currentPreset.spatial) {
+                currentPreset.spatial.immersion_pct = v;
+                onApplyPreset(currentPreset);
+              }
+            }}
           />
-          <span class="control-val tabular-nums">{spatialDistance}%</span>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <Volume2 size={15} color="var(--color-channel-game)" />
-            <span>{$t('channel_tab.volume_normalizer')}</span>
+      {#if currentPreset.smart_volume}
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <Volume2 size={15} color="var(--color-channel-game)" />
+              <span>{$t('channel_tab.volume_normalizer')}</span>
+            </div>
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                bind:checked={currentPreset.smart_volume.enabled}
+                on:change={() => onApplyPreset(currentPreset)}
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <p class="card-info">
+            {$t('channel_tab.volume_normalizer_desc')}
+          </p>
+          <div class="radio-group" class:disabled={!currentPreset.smart_volume.enabled}>
+            <button
+              class="pill-btn"
+              class:active={currentPreset.smart_volume.mode === 'quiet'}
+              on:click={() => {
+                if (currentPreset.smart_volume) {
+                  currentPreset.smart_volume.mode = 'quiet';
+                  currentPreset.smart_volume.enabled = true;
+                  onApplyPreset(currentPreset);
+                }
+              }}
+            >{$t('channel_tab.quiet')}</button>
+            <button
+              class="pill-btn"
+              class:active={currentPreset.smart_volume.mode === 'balanced'}
+              on:click={() => {
+                if (currentPreset.smart_volume) {
+                  currentPreset.smart_volume.mode = 'balanced';
+                  currentPreset.smart_volume.enabled = true;
+                  onApplyPreset(currentPreset);
+                }
+              }}
+            >{$t('channel_tab.balanced')}</button>
+            <button
+              class="pill-btn"
+              class:active={currentPreset.smart_volume.mode === 'loud'}
+              on:click={() => {
+                if (currentPreset.smart_volume) {
+                  currentPreset.smart_volume.mode = 'loud';
+                  currentPreset.smart_volume.enabled = true;
+                  onApplyPreset(currentPreset);
+                }
+              }}
+            >{$t('channel_tab.loud')}</button>
           </div>
         </div>
-        <p class="card-info">
-          {$t('channel_tab.volume_normalizer_desc')}
-        </p>
-        <div class="radio-group">
-          <button class="pill-btn" class:active={smartVolume === 'quiet'} on:click={() => smartVolume = 'quiet'}>{$t('channel_tab.quiet')}</button>
-          <button class="pill-btn" class:active={smartVolume === 'balanced'} on:click={() => smartVolume = 'balanced'}>{$t('channel_tab.balanced')}</button>
-          <button class="pill-btn" class:active={smartVolume === 'loud'} on:click={() => smartVolume = 'loud'}>{$t('channel_tab.loud')}</button>
-        </div>
-      </div>
+      {/if}
     {/if}
 
     {#if channel === 'chat'}
       <div class="card">
         <div class="card-header">
           <div class="card-title">
-            <Waves size={15} color="var(--color-channel-chat)" />
+            <Waves size={15} color="var(--color-channel-chat, #22C55E)" />
             <span>{$t('channel_tab.noise_remover')}</span>
           </div>
+          <button
+            class="toggle-btn"
+            class:active={currentPreset.noise_canceller?.enabled ?? false}
+            on:click={() => {
+              if (!currentPreset.noise_canceller) {
+                currentPreset.noise_canceller = { enabled: true, amount: 65, vad_threshold: 0.35 };
+              } else {
+                currentPreset.noise_canceller.enabled = !currentPreset.noise_canceller.enabled;
+              }
+              onApplyPreset(currentPreset);
+            }}
+          >
+            {currentPreset.noise_canceller?.enabled ? $t('common.on') : $t('common.off')}
+          </button>
         </div>
         <p class="card-info">
           {$t('channel_tab.noise_remover_desc')}
         </p>
         <div class="control-row">
-          <span class="control-label">{$t('channel_tab.suppression')}</span>
-          <input
-            type="range"
-            aria-label={$t('channel_tab.suppression_aria')}
-            aria-valuenow={chatNoiseAmount}
-            aria-valuemin="0"
-            aria-valuemax="100"
-            min="0"
-            max="100"
-            bind:value={chatNoiseAmount}
-            class="effect-slider"
+          <SonarSlider
+            label={$t('channel_tab.suppression')}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            accentColor="var(--color-channel-chat, #22C55E)"
+            value={currentPreset.noise_canceller?.amount ?? 0}
+            disabled={!currentPreset.noise_canceller?.enabled}
+            onChange={(val) => {
+              if (!currentPreset.noise_canceller) {
+                currentPreset.noise_canceller = { enabled: true, amount: val, vad_threshold: 0.35 };
+              } else {
+                currentPreset.noise_canceller.amount = val;
+              }
+              onApplyPreset(currentPreset);
+            }}
           />
-          <span class="control-val tabular-nums">{chatNoiseAmount > 0 ? chatNoiseAmount + '%' : $t('channel_tab.off')}</span>
         </div>
       </div>
     {/if}
   </div>
+
+  {#if isSavingCustom}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="custom-modal-backdrop" on:click={() => isSavingCustom = false}>
+      <div class="custom-modal-box" on:click|stopPropagation>
+        <div class="modal-header">
+          <BookmarkPlus size={18} color="var(--color-accent-brand, #FF5200)" />
+          <h3>Save Custom Preset</h3>
+        </div>
+        <p class="modal-desc">Save current parametric EQ curve and DSP tuning into your custom preset library.</p>
+        <input
+          type="text"
+          class="custom-name-input"
+          placeholder="Preset Name"
+          bind:value={customPresetName}
+          on:keydown={(e) => {
+            if (e.key === 'Enter') handleConfirmSaveCustom();
+            if (e.key === 'Escape') isSavingCustom = false;
+          }}
+        />
+        <div class="modal-btn-row">
+          <button type="button" class="btn-cancel" on:click={() => isSavingCustom = false}>Cancel</button>
+          <button type="button" class="btn-confirm" on:click={handleConfirmSaveCustom}>Save Preset</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -354,9 +489,124 @@
     cursor: pointer;
     transition: background-color var(--transition-fast), border-color var(--transition-fast);
   }
-  .browse-btn:hover {
-    background: var(--color-surface-hover);
-    border-color: var(--color-border-bright);
+  .preset-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .save-custom-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-neutral-300, #CBD5E1);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast, 120ms);
+  }
+
+  .save-custom-btn:hover {
+    background: var(--color-surface-hover, #252D40);
+    color: var(--color-accent-brand, #FF5200);
+    border-color: var(--color-accent-brand, #FF5200);
+  }
+
+  .custom-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .custom-modal-box {
+    background: var(--color-surface-1, #11151F);
+    border: 1px solid var(--color-border-bright, #2A344A);
+    border-radius: var(--radius-lg, 8px);
+    box-shadow: var(--shadow-depth-lg, 0 6px 20px rgba(0,0,0,0.55));
+    width: 380px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary, #F8FAFC);
+  }
+
+  .modal-desc {
+    font-size: 0.775rem;
+    color: var(--color-neutral-400, #94A3B8);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .custom-name-input {
+    background: var(--color-surface-2, #161B26);
+    border: 1px solid var(--color-border-default, #1F2637);
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px 12px;
+    color: var(--color-text-primary, #F8FAFC);
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color var(--transition-fast, 120ms);
+  }
+
+  .custom-name-input:focus {
+    border-color: var(--color-accent-brand, #FF5200);
+  }
+
+  .modal-btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .btn-cancel {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm, 4px);
+    background: transparent;
+    border: 1px solid var(--color-border-default, #1F2637);
+    color: var(--color-neutral-400, #94A3B8);
+    font-size: 0.775rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-confirm {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-accent-brand, #FF5200);
+    border: none;
+    color: #ffffff;
+    font-size: 0.775rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition-fast, 120ms);
+  }
+
+  .btn-confirm:hover {
+    opacity: 0.9;
   }
 
   .favorites-strip {
@@ -528,59 +778,6 @@
     gap: 6px;
   }
 
-  .tone-name {
-    font-size: 10px;
-    font-weight: 800;
-    color: var(--color-text-secondary);
-    letter-spacing: 0.5px;
-  }
-
-  .tone-slider {
-    appearance: none;
-    -webkit-appearance: none;
-    height: 5px;
-    background: var(--color-surface-3);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-  }
-  .tone-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .tone-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .tone-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .tone-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
-  }
-
-  .tone-val {
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-  }
-
   .card-info {
     font-size: 11px;
     color: var(--color-text-secondary);
@@ -592,62 +789,6 @@
     display: flex;
     align-items: center;
     gap: 14px;
-  }
-
-  .control-label {
-    width: 130px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-
-  .effect-slider {
-    flex: 1;
-    appearance: none;
-    -webkit-appearance: none;
-    height: 5px;
-    background: var(--color-surface-3);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-  }
-  .effect-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .effect-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .effect-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
-    cursor: pointer;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .effect-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
-  }
-
-  .control-val {
-    width: 45px;
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-    text-align: end;
   }
 
   .radio-group {

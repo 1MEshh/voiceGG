@@ -214,6 +214,38 @@
     }
   }
 
+  async function handleToggleFavorite(channel: ChannelId, presetId: string) {
+    if (!status.config.favorite_presets) {
+      status.config.favorite_presets = {};
+    }
+    const list = status.config.favorite_presets[channel] || [];
+    const idx = list.indexOf(presetId);
+    if (idx >= 0) list.splice(idx, 1);
+    else list.push(presetId);
+    status.config.favorite_presets[channel] = [...list];
+    status = { ...status };
+    try {
+      await invoke('toggle_favorite_preset', { channel, presetId });
+    } catch (e) {
+      console.error('Failed to toggle favorite preset:', e);
+    }
+  }
+
+  async function handleSaveCustomPreset(channel: ChannelId, preset: Preset) {
+    if (!status.config.custom_presets) {
+      status.config.custom_presets = {};
+    }
+    status.config.custom_presets[preset.id] = preset;
+    status.config.active_presets[channel] = preset.id;
+    allPresets = [...allPresets.filter((p) => p.id !== preset.id), preset];
+    status = { ...status };
+    try {
+      await invoke('save_custom_preset', { channel, preset });
+    } catch (e) {
+      console.error('Failed to save custom preset:', e);
+    }
+  }
+
   async function handleSetMicMonitor(enabled: boolean, volume: number) {
     status.mic_monitor_enabled = enabled;
     status.mic_monitor_volume = volume;
@@ -323,8 +355,12 @@
           channel={activeTab as ChannelId}
           currentPreset={currentPresetObj}
           {allPresets}
+          favoritePresets={status.config.favorite_presets?.[activeTab as ChannelId] || []}
+          meter={meters[activeTab as ChannelId]}
           onApplyPreset={(p) => handleSavePreset(activeTab as ChannelId, p)}
           onOpenBrowser={() => openPresetBrowser(activeTab as ChannelId)}
+          onToggleFavorite={(presetId) => handleToggleFavorite(activeTab as ChannelId, presetId)}
+          onSaveCustomPreset={(ch, p) => handleSaveCustomPreset(ch, p)}
           onChangeEq={(eq) => {
             currentPresetObj.eq = eq;
             handleSavePreset(activeTab as ChannelId, currentPresetObj);
