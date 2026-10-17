@@ -1,10 +1,14 @@
 <script lang="ts">
-  import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter } from '../types';
+  import type { ChannelId, SystemStatus, ActiveStream, ChannelMeter, Preset, EqConfig } from '../types';
   import { CHANNELS } from './theme';
   import { Volume2, VolumeX, SlidersHorizontal, Gamepad2, MessageSquare, Music, Headphones, Mic } from '@lucide/svelte';
   import { t } from './i18n';
+  import CustomSelect from './CustomSelect.svelte';
+  import SonarFader from './SonarFader.svelte';
+  import MiniEqPreview from './MiniEqPreview.svelte';
 
   export let status: SystemStatus;
+  export let allPresets: Preset[] = [];
   export let micMonitorEnabled: boolean = false;
   export let micMonitorVolume: number = 50;
   export let meters: Record<ChannelId, ChannelMeter> | undefined = undefined;
@@ -30,6 +34,30 @@
       r => r.binary_name.toLowerCase() === binary.toLowerCase()
     );
     return rule?.volume ?? 100;
+  }
+
+  $: playbackDeviceOptions = [
+    { value: 'default', label: $t('mixer.default_sink') },
+    ...(status.devices || [])
+      .filter((d) => d.device_type.toLowerCase() === 'sink')
+      .map((d) => ({ value: d.name, label: d.description || d.name })),
+  ];
+
+  $: micDeviceOptions = [
+    { value: 'default', label: $t('mixer.default_source') },
+    ...(status.devices || [])
+      .filter((d) => d.device_type.toLowerCase() === 'source')
+      .map((d) => ({ value: d.name, label: d.description || d.name })),
+  ];
+
+  function getChannelEq(ch: ChannelId): EqConfig | undefined {
+    const presetId = status.config.active_presets[ch];
+    if (!presetId) return undefined;
+    if (status.config.custom_presets && status.config.custom_presets[presetId]) {
+      return status.config.custom_presets[presetId].eq;
+    }
+    const found = allPresets.find((p) => p.id.toLowerCase() === presetId.toLowerCase());
+    return found?.eq;
   }
 
   function getMeterPercent(channel: ChannelId): number {
@@ -109,31 +137,19 @@
   <div class="device-header">
     <div class="device-col">
       <span class="label">{$t('mixer.playback_device')}</span>
-      <select
-        class="master-select"
-        aria-label={$t('mixer.playback_select_aria')}
+      <CustomSelect
         value={status.config.preferred_output_device || 'default'}
-        on:change={(e) => onSetDevice('sink', e.currentTarget.value)}
-      >
-        <option value="default">{$t('mixer.default_sink')}</option>
-        {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'sink') as dev}
-          <option value={dev.name}>{dev.description || dev.name}</option>
-        {/each}
-      </select>
+        options={playbackDeviceOptions}
+        onChange={(val) => onSetDevice('sink', val)}
+      />
     </div>
     <div class="device-col">
       <span class="label">{$t('mixer.microphone')}</span>
-      <select
-        class="master-select"
-        aria-label={$t('mixer.mic_select_aria')}
+      <CustomSelect
         value={status.config.preferred_input_device || 'default'}
-        on:change={(e) => onSetDevice('source', e.currentTarget.value)}
-      >
-        <option value="default">{$t('mixer.default_source')}</option>
-        {#each (status.devices || []).filter(d => d.device_type.toLowerCase() === 'source') as dev}
-          <option value={dev.name}>{dev.description || dev.name}</option>
-        {/each}
-      </select>
+        options={micDeviceOptions}
+        onChange={(val) => onSetDevice('source', val)}
+      />
     </div>
   </div>
 
@@ -172,34 +188,23 @@
           {presetId.replace(/^game_|^chat_|^media_|^mic_/, '').replace('_', ' ').toUpperCase()}
         </button>
 
-        <div class="fader-container">
-          <div class="fader-track">
-            <div
-              class="fader-fill"
-              style="height: {isMuted ? '0%' : vol}%; background-color: {info.defaultColor};"
-            ></div>
-          </div>
-          <div
-            class="meter-track"
-            title={`${meters?.[ch]?.peak_dbfs !== undefined ? meters[ch].peak_dbfs.toFixed(1) + ' dBFS' : '-∞ dBFS'}`}
-          >
-            <div class="meter-fill" style="height: {getMeterPercent(ch)}%;"></div>
-          </div>
-          <input
-            type="range"
-            aria-label={$t('mixer.channel_vol_aria', { channel: chLabel })}
-            aria-valuenow={vol}
-            aria-valuemin="0"
-            aria-valuemax="100"
-            class="vertical-slider"
-            min="0"
-            max="100"
-            value={vol}
-            on:input={(e) => onSetVolume(ch, Number(e.currentTarget.value))}
+        <div class="mini-eq-wrap">
+          <MiniEqPreview
+            eqConfig={getChannelEq(ch)}
+            accentColor={info.defaultColor}
+            height={34}
           />
         </div>
 
-        <div class="vol-text tabular-nums">{vol}%</div>
+        <div class="fader-container">
+          <SonarFader
+            value={vol}
+            meter={meters?.[ch]}
+            accentColor={info.defaultColor}
+            disabled={isMuted}
+            onChange={(newVol) => onSetVolume(ch, newVol)}
+          />
+        </div>
 
         <div class="strip-btn-row">
           <button
@@ -337,23 +342,6 @@
     text-transform: uppercase;
   }
 
-  .master-select {
-    background: var(--color-surface-3);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border-default);
-    padding: 8px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: var(--font-sans);
-    border-radius: var(--radius-sm);
-    outline: none;
-    cursor: pointer;
-    transition: border-color var(--transition-fast);
-  }
-  .master-select:hover {
-    border-color: var(--color-border-bright);
-  }
-
   .channel-strips {
     direction: ltr !important;
     display: grid;
@@ -443,127 +431,19 @@
     border-color: var(--color-border-bright);
   }
 
-  .fader-container {
-    direction: ltr !important;
-    position: relative;
-    height: 180px;
-    width: 44px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
+  .mini-eq-wrap {
+    width: 100%;
     margin-bottom: 12px;
   }
 
-  .fader-track {
-    width: 8px;
-    height: 100%;
-    background: var(--color-surface-3);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-border-default);
-    overflow: hidden;
-    display: flex;
-    align-items: flex-end;
-  }
-
-  /* Zero lag: thumb and fill track instantly without dragging latency */
-  .fader-fill {
+  .fader-container {
+    direction: ltr !important;
+    position: relative;
     width: 100%;
-    transition: none;
-  }
-
-  .meter-track {
-    width: 5px;
-    height: 100%;
-    background: var(--color-surface-3);
-    border-radius: 2px;
-    border: 1px solid var(--color-border-default);
-    overflow: hidden;
     display: flex;
-    align-items: flex-end;
-  }
-
-  .meter-fill {
-    width: 100%;
-    background: linear-gradient(to top, #10B981 0%, #10B981 70%, #F59E0B 85%, #EF4444 100%);
-    background-size: 100% 180px;
-    background-position: bottom;
-    transition: height 0.05s linear;
-    border-radius: 1px;
-  }
-
-  .vertical-slider {
-    position: absolute;
-    width: 180px;
-    height: 36px;
-    transform: rotate(-90deg);
-    appearance: none;
-    -webkit-appearance: none;
-    background: transparent;
-    outline: none;
-    cursor: pointer;
-    z-index: 2;
-  }
-
-  /* Sonar-authentic flat thumb: solid neutral-200 fill with 1px border and center accent indicator line */
-  .vertical-slider::-webkit-slider-thumb {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 14px;
-    height: 28px;
-    background:
-      linear-gradient(to right,
-        var(--color-neutral-200) calc(50% - 1px),
-        var(--color-accent-brand) calc(50% - 1px),
-        var(--color-accent-brand) calc(50% + 1px),
-        var(--color-neutral-200) calc(50% + 1px)
-      );
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-border-bright);
-    cursor: grab;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .vertical-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .vertical-slider:active::-webkit-slider-thumb {
-    cursor: grabbing;
-    border-color: var(--color-accent-brand);
-  }
-
-  .vertical-slider::-moz-range-thumb {
-    width: 14px;
-    height: 28px;
-    background:
-      linear-gradient(to right,
-        var(--color-neutral-200) calc(50% - 1px),
-        var(--color-accent-brand) calc(50% - 1px),
-        var(--color-accent-brand) calc(50% + 1px),
-        var(--color-neutral-200) calc(50% + 1px)
-      );
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-border-bright);
-    cursor: grab;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .vertical-slider:hover::-moz-range-thumb {
-    border-color: var(--color-accent-brand);
-  }
-  .vertical-slider:active::-moz-range-thumb {
-    cursor: grabbing;
-    border-color: var(--color-accent-brand);
-  }
-
-  .vol-text {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--color-text-primary);
-    font-family: var(--font-mono);
-    font-variant-numeric: var(--tabular-nums);
+    justify-content: center;
+    align-items: center;
     margin-bottom: 8px;
-    letter-spacing: -0.5px;
   }
 
   .strip-btn-row {

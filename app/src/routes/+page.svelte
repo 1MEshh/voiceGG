@@ -252,6 +252,7 @@
     {#if activeTab === 'mixer'}
       <MixerTab
         {status}
+        {allPresets}
         micMonitorEnabled={status.mic_monitor_enabled}
         micMonitorVolume={status.mic_monitor_volume}
         {meters}
