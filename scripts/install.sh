@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # VoiceGG Rootless Installer for Arch Linux & Wayland / Hyprland
 # Repo: https://github.com/1MEshh/voiceGG
-# Can be run directly from cloned repo or piped via curl:
+# Can be run directly from cloned repo or piped via curl: 
 #   curl -fsSL https://raw.githubusercontent.com/1MEshh/voiceGG/main/install.sh | bash
 
 set -euo pipefail
