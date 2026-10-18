@@ -28,3 +28,15 @@ We will acknowledge receipt within 48 hours and work with you to release a patch
 - **Local-Only IPC**: IPC communication uses a Unix domain socket located at `$XDG_RUNTIME_DIR/voicegg/daemon.sock` with file mode `0600` and `SO_PEERCRED` validation.
 - **Privacy by Default**: No telemetry, no usage tracking, no remote logging, and no persistent device identifiers stored.
 - **Strict Parsing**: Preset files and configuration files are schema-validated, strictly bounded in memory, and reject unexpected executable constructs.
+
+
+
+
+
+
+
+
+
+
+
+       
