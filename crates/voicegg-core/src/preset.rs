@@ -128,7 +128,7 @@ impl Preset {
                 "Apex Legends",
                 "Shield cracking, sliding cues, and directional footsteps for Apex",
                 &["apex", "battle_royale", "footsteps", "fps"],
-                [-2.0, -1.0, 0.0, 0.0, 2.0, 4.0, 4.0, 3.0, 1.5, 0.0],
+                [-2.5, -1.0, 0.0, 0.5, 2.0, 4.0, 4.5, 3.5, 1.5, 0.0],
             ),
             Self::create_game_preset(
                 "game_overwatch2",
@@ -198,7 +198,7 @@ impl Preset {
                 "The Finals",
                 "Destruction debris attenuation and sprint audio cue clarity",
                 &["finals", "fps", "destruction", "footsteps"],
-                [-3.0, -1.0, 0.0, 1.0, 2.0, 3.5, 4.0, 3.0, 1.5, 0.0],
+                [-3.0, -1.5, 0.0, 1.0, 2.0, 3.5, 4.5, 3.5, 1.5, 0.0],
             ),
             Self::create_game_preset(
                 "game_rust",
@@ -600,6 +600,17 @@ mod tests {
         let cs2 = Preset::get_preset_by_id("game_cs2");
         assert!(cs2.is_some());
         assert_eq!(cs2.unwrap().category, PresetCategory::Game);
+    }
+
+    #[test]
+    fn test_lookup_apex_and_finals_presets() {
+        let apex = Preset::get_preset_by_id("game_apex").expect("game_apex preset missing");
+        assert_eq!(apex.category, PresetCategory::Game);
+        assert!(apex.tags.contains(&"apex".to_string()));
+
+        let finals = Preset::get_preset_by_id("game_finals").expect("game_finals preset missing");
+        assert_eq!(finals.category, PresetCategory::Game);
+        assert!(finals.tags.contains(&"finals".to_string()));
     }
 
     #[test]

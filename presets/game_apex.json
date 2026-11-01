@@ -15,7 +15,7 @@
     "bands": [
       {
         "freq_hz": 32.0,
-        "gain_db": -2.0,
+        "gain_db": -2.5,
         "q": 1.0,
         "filter_type": "low_shelf",
         "enabled": true
@@ -36,7 +36,7 @@
       },
       {
         "freq_hz": 250.0,
-        "gain_db": 0.0,
+        "gain_db": 0.5,
         "q": 1.0,
         "filter_type": "peak",
         "enabled": true
@@ -57,14 +57,14 @@
       },
       {
         "freq_hz": 2000.0,
-        "gain_db": 4.0,
+        "gain_db": 4.5,
         "q": 1.0,
         "filter_type": "peak",
         "enabled": true
       },
       {
         "freq_hz": 4000.0,
-        "gain_db": 3.0,
+        "gain_db": 3.5,
         "q": 1.0,
         "filter_type": "peak",
         "enabled": true
