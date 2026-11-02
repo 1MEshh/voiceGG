@@ -91,3 +91,8 @@ executables = ["helldivers2.exe"]
 name = "Team Fortress 2"
 preset = "game_cs2"
 executables = ["hl2_linux", "tf_win64.exe"]
+
+[games.destiny2]
+name = "Destiny 2"
+preset = "game_immersive"
+executables = ["destiny2.exe"]
