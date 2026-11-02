@@ -151,6 +151,9 @@ impl ParametricEq {
         if !self.enabled {
             return sample;
         }
+        if !sample.is_finite() {
+            return 0.0;
+        }
         sample *= self.input_gain_lin;
         for filter in &mut self.filters {
             sample = filter.process_sample(sample);
@@ -158,7 +161,11 @@ impl ParametricEq {
         sample = self.bass_filter.process_sample(sample);
         sample = self.voice_filter.process_sample(sample);
         sample = self.treble_filter.process_sample(sample);
-        sample
+        if !sample.is_finite() {
+            0.0
+        } else {
+            sample
+        }
     }
 
     /// Processes an audio slice in-place through input gain, 10 bands, and macro tones.
@@ -260,6 +267,17 @@ mod tests {
         // Bands 3..10 must have been reset to identity
         for i in 3..MAX_BANDS {
             assert_eq!(eq.filters[i].target_params(), BiquadParams::identity());
+        }
+    }
+
+    #[test]
+    fn test_eq_nan_and_denormal_safety() {
+        let mut eq = ParametricEq::new(48000.0);
+        let mut buffer = vec![f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 1e-38, -1e-38];
+        eq.process(&mut buffer);
+        for &s in &buffer {
+            assert!(s.is_finite());
+            assert!(!s.is_nan());
         }
     }
 }

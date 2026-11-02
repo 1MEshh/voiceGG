@@ -114,13 +114,27 @@ impl BiquadParams {
             }
         };
 
+        if !a0.is_finite() || a0.abs() < f32::EPSILON {
+            return Self::identity();
+        }
+
         let inv_a0 = 1.0 / a0;
+        let b0 = b0 * inv_a0;
+        let b1 = b1 * inv_a0;
+        let b2 = b2 * inv_a0;
+        let a1 = a1 * inv_a0;
+        let a2 = a2 * inv_a0;
+
+        if !b0.is_finite() || !b1.is_finite() || !b2.is_finite() || !a1.is_finite() || !a2.is_finite() {
+            return Self::identity();
+        }
+
         Self {
-            b0: b0 * inv_a0,
-            b1: b1 * inv_a0,
-            b2: b2 * inv_a0,
-            a1: a1 * inv_a0,
-            a2: a2 * inv_a0,
+            b0,
+            b1,
+            b2,
+            a1,
+            a2,
         }
     }
 }
@@ -186,7 +200,11 @@ impl BiquadFilter {
 
     /// Processes a single audio sample (Direct Form II Transposed).
     #[inline(always)]
-    pub fn process_sample(&mut self, input: f32) -> f32 {
+    pub fn process_sample(&mut self, mut input: f32) -> f32 {
+        if !input.is_finite() {
+            input = 0.0;
+        }
+
         if self.ramp_remaining > 0 {
             let step = 1.0 / (self.ramp_remaining as f32);
             self.params.b0 += (self.target_params.b0 - self.params.b0) * step;
@@ -199,9 +217,24 @@ impl BiquadFilter {
                 self.params = self.target_params;
             }
         }
-        let output = self.params.b0 * input + self.s1;
+        let mut output = self.params.b0 * input + self.s1;
         self.s1 = self.params.b1 * input - self.params.a1 * output + self.s2;
         self.s2 = self.params.b2 * input - self.params.a2 * output;
+
+        // Flush denormals in delay registers to prevent CPU performance penalties
+        if self.s1.abs() < 1e-25 {
+            self.s1 = 0.0;
+        }
+        if self.s2.abs() < 1e-25 {
+            self.s2 = 0.0;
+        }
+
+        if !output.is_finite() {
+            output = 0.0;
+            self.s1 = 0.0;
+            self.s2 = 0.0;
+        }
+
         output
     }
 
@@ -211,5 +244,40 @@ impl BiquadFilter {
         for sample in buffer.iter_mut() {
             *sample = self.process_sample(*sample);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_biquad_denormal_and_nan_safety() {
+        let mut filter = BiquadFilter::new(BiquadParams::compute(
+            FilterType::Peak,
+            48000.0,
+            1000.0,
+            6.0,
+            1.0,
+        ));
+
+        // Process NaN and Inf
+        assert_eq!(filter.process_sample(f32::NAN), 0.0);
+        assert_eq!(filter.process_sample(f32::INFINITY), 0.0);
+        assert_eq!(filter.process_sample(f32::NEG_INFINITY), 0.0);
+
+        // Process denormal / tiny numbers
+        let tiny = 1e-38_f32;
+        let out = filter.process_sample(tiny);
+        assert!(out.is_finite());
+        assert!(!out.is_nan());
+    }
+
+    #[test]
+    fn test_biquad_compute_zero_division_guard() {
+        // Extreme values should not panic or produce NaN coefficients
+        let params = BiquadParams::compute(FilterType::Peak, 48000.0, 0.0, 0.0, 0.0);
+        assert!(params.b0.is_finite());
+        assert!(params.a1.is_finite());
     }
 }
