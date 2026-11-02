@@ -81,3 +81,8 @@ name = "Marvel Rivals"
 preset = "game_overwatch2"
 executables = ["MarvelRivals.exe", "marvelrivals.exe"]
 
+
+[games.helldivers2]
+name = "Helldivers 2"
+preset = "game_immersive"
+executables = ["helldivers2.exe"]
