@@ -101,3 +101,8 @@ executables = ["destiny2.exe"]
 name = "Path of Exile"
 preset = "game_flat"
 executables = ["PathOfExile.exe", "PathOfExile_x64.exe"]
+
+[games.hunt]
+name = "Hunt: Showdown 1896"
+preset = "game_footsteps"
+executables = ["HuntGame.exe"]
