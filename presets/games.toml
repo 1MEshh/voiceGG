@@ -96,3 +96,8 @@ executables = ["hl2_linux", "tf_win64.exe"]
 name = "Destiny 2"
 preset = "game_immersive"
 executables = ["destiny2.exe"]
+
+[games.poe]
+name = "Path of Exile"
+preset = "game_flat"
+executables = ["PathOfExile.exe", "PathOfExile_x64.exe"]
