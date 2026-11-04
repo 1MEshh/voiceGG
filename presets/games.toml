@@ -121,3 +121,8 @@ executables = ["eldenring.exe"]
 name = "Rocket League"
 preset = "game_flat"
 executables = ["RocketLeague.exe"]
+
+[games.bg3]
+name = "Baldurs Gate 3"
+preset = "game_immersive"
+executables = ["bg3.exe", "bg3_dx11.exe"]
