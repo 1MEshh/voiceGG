@@ -111,3 +111,8 @@ executables = ["HuntGame.exe"]
 name = "Cyberpunk 2077"
 preset = "game_immersive"
 executables = ["Cyberpunk2077.exe"]
+
+[games.eldenring]
+name = "Elden Ring"
+preset = "game_immersive"
+executables = ["eldenring.exe"]
