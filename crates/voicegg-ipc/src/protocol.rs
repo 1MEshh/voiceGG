@@ -185,6 +185,8 @@ pub enum IpcRequest {
         /// Preset ID to reset.
         preset_id: String,
     },
+    /// Keepalive ping request to verify daemon responsiveness.
+    Ping,
 }
 
 /// Responses returned from Daemon to Client.
@@ -193,6 +195,8 @@ pub enum IpcRequest {
 pub enum IpcResponse {
     /// Operation succeeded without payload.
     Success,
+    /// Keepalive pong response.
+    Pong,
     /// Full system status payload.
     Status(Box<SystemStatus>),
     /// Audio devices list payload.
@@ -203,6 +207,46 @@ pub enum IpcResponse {
     Meters(HashMap<ChannelId, ChannelMeter>),
     /// Operation failed with an error message.
     Error(String),
+}
+
+/// Configuration options for IPC client requests and timeout thresholds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestConfig {
+    /// Timeout in milliseconds (default: 2000 ms).
+    pub timeout_ms: u64,
+}
+
+impl Default for RequestConfig {
+    fn default() -> Self {
+        Self {
+            timeout_ms: Self::DEFAULT_TIMEOUT_MS,
+        }
+    }
+}
+
+impl RequestConfig {
+    /// Sane default timeout for IPC roundtrips (2000 ms).
+    pub const DEFAULT_TIMEOUT_MS: u64 = 2000;
+
+    /// Creates a default request configuration.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            timeout_ms: Self::DEFAULT_TIMEOUT_MS,
+        }
+    }
+
+    /// Creates a request configuration with an explicit timeout in milliseconds.
+    #[must_use]
+    pub const fn with_timeout_ms(timeout_ms: u64) -> Self {
+        Self { timeout_ms }
+    }
+
+    /// Converts timeout configuration to a standard `std::time::Duration`.
+    #[must_use]
+    pub fn duration(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_ms)
+    }
 }
 
 /// Asynchronous events streamed from Daemon to subscribed Clients.
@@ -379,5 +423,19 @@ mod tests {
 
         let req_reset = IpcRequest::ResetPreset { channel: ChannelId::Game, preset_id: "game_flat".to_string() };
         assert_eq!(req_reset, serde_json::from_str(&serde_json::to_string(&req_reset).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn test_request_config_defaults_and_serialization() {
+        let default_cfg = RequestConfig::default();
+        assert_eq!(default_cfg.timeout_ms, 2000);
+        assert_eq!(default_cfg.duration(), std::time::Duration::from_millis(2000));
+
+        let custom_cfg = RequestConfig::with_timeout_ms(5000);
+        assert_eq!(custom_cfg.timeout_ms, 5000);
+
+        let json = serde_json::to_string(&custom_cfg).unwrap();
+        let decoded: RequestConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(custom_cfg, decoded);
     }
 }

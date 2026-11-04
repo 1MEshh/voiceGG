@@ -523,6 +523,7 @@ impl RequestHandler for DaemonHandler {
                     IpcResponse::Error(format!("Unknown built-in preset '{preset_id}'"))
                 }
             }
+            IpcRequest::Ping => IpcResponse::Pong,
         }
     }
 }
