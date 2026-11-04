@@ -106,3 +106,8 @@ executables = ["PathOfExile.exe", "PathOfExile_x64.exe"]
 name = "Hunt: Showdown 1896"
 preset = "game_footsteps"
 executables = ["HuntGame.exe"]
+
+[games.cyberpunk]
+name = "Cyberpunk 2077"
+preset = "game_immersive"
+executables = ["Cyberpunk2077.exe"]
