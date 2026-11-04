@@ -131,3 +131,8 @@ executables = ["bg3.exe", "bg3_dx11.exe"]
 name = "Left 4 Dead 2"
 preset = "game_cs2"
 executables = ["left4dead2.exe", "hl2_linux"]
+
+[games.sot]
+name = "Sea of Thieves"
+preset = "game_immersive"
+executables = ["SoTGame.exe"]
