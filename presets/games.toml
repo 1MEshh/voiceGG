@@ -116,3 +116,8 @@ executables = ["Cyberpunk2077.exe"]
 name = "Elden Ring"
 preset = "game_immersive"
 executables = ["eldenring.exe"]
+
+[games.rocketleague]
+name = "Rocket League"
+preset = "game_flat"
+executables = ["RocketLeague.exe"]
