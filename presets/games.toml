@@ -136,3 +136,8 @@ executables = ["left4dead2.exe", "hl2_linux"]
 name = "Sea of Thieves"
 preset = "game_immersive"
 executables = ["SoTGame.exe"]
+
+[games.mhw]
+name = "Monster Hunter: World"
+preset = "game_immersive"
+executables = ["MonsterHunterWorld.exe"]
