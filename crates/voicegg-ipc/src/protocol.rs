@@ -438,4 +438,17 @@ mod tests {
         let decoded: RequestConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(custom_cfg, decoded);
     }
+
+    #[test]
+    fn test_ping_pong_serialization() {
+        let ping = IpcRequest::Ping;
+        let json = serde_json::to_string(&ping).unwrap();
+        let decoded: IpcRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(ping, decoded);
+
+        let pong = IpcResponse::Pong;
+        let json_pong = serde_json::to_string(&pong).unwrap();
+        let decoded_pong: IpcResponse = serde_json::from_str(&json_pong).unwrap();
+        assert_eq!(pong, decoded_pong);
+    }
 }

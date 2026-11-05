@@ -49,6 +49,7 @@ async fn test_client_server_lifecycle() {
                         IpcResponse::Error("Unsupported language".into())
                     }
                 }
+                IpcRequest::Ping => IpcResponse::Pong,
                 _ => IpcResponse::Success,
             }))
             .await
@@ -60,6 +61,9 @@ async fn test_client_server_lifecycle() {
     let mut client = IpcClient::connect(&socket_path)
         .await
         .expect("Failed to connect client");
+
+    // Test ping keepalive
+    client.ping().await.expect("Ping request failed");
 
     // Test volume request
     let res = client
@@ -164,6 +168,62 @@ async fn test_client_server_lifecycle() {
 }
 
 #[tokio::test]
+async fn test_ping_pong_and_request_timeout() {
+    let temp_dir = std::env::temp_dir().join(format!("voicegg_ping_{}", std::process::id()));
+    let socket_path = temp_dir.join("ping.sock");
+
+    let server = IpcServer::bind(&socket_path).expect("Failed to bind test server");
+    let server_handle = tokio::spawn(async move {
+        server
+            .run(Arc::new(|req: IpcRequest| match req {
+                IpcRequest::Ping => IpcResponse::Pong,
+                _ => IpcResponse::Success,
+            }))
+            .await
+            .expect("Server failed");
+    });
+
+    sleep(Duration::from_millis(50)).await;
+
+    let mut client = IpcClient::connect(&socket_path)
+        .await
+        .expect("Client connect failed");
+
+    // Verify Ping-Pong roundtrip
+    client.ping().await.expect("Ping keepalive should succeed");
+    let res = client.request(IpcRequest::Ping).await.expect("Ping request failed");
+    assert_eq!(res, IpcResponse::Pong);
+
+    server_handle.abort();
+
+    // Verify request timeout when the server does not respond
+    let timeout_socket = temp_dir.join("timeout.sock");
+    let silent_listener = tokio::net::UnixListener::bind(&timeout_socket).expect("Failed to bind silent listener");
+    let silent_handle = tokio::spawn(async move {
+        if let Ok((mut stream, _)) = silent_listener.accept().await {
+            use tokio::io::AsyncReadExt;
+            let mut buf = [0u8; 1024];
+            let _ = stream.read(&mut buf).await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+
+    let mut timeout_client = IpcClient::connect(&timeout_socket)
+        .await
+        .expect("Timeout client connect failed");
+
+    let timeout_res = timeout_client
+        .request_with_timeout(IpcRequest::GetStatus, Duration::from_millis(50))
+        .await;
+    assert!(timeout_res.is_err(), "Expected request to time out");
+    let err_str = timeout_res.unwrap_err().to_string();
+    assert!(err_str.contains("timed out") || err_str.contains("timeout"));
+
+    silent_handle.abort();
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
 async fn test_bounded_codec_rejects_oversized_messages() {
     use tokio::io::AsyncWriteExt;
     let temp_dir = std::env::temp_dir().join(format!("voicegg_overflow_{}", std::process::id()));
@@ -200,3 +260,4 @@ async fn test_bounded_codec_rejects_oversized_messages() {
     server_handle.abort();
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
