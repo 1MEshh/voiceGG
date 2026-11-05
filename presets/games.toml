@@ -141,3 +141,8 @@ executables = ["SoTGame.exe"]
 name = "Monster Hunter: World"
 preset = "game_immersive"
 executables = ["MonsterHunterWorld.exe"]
+
+[games.warframe]
+name = "Warframe"
+preset = "game_immersive"
+executables = ["Warframe.x64.exe"]
