@@ -146,3 +146,8 @@ executables = ["MonsterHunterWorld.exe"]
 name = "Warframe"
 preset = "game_immersive"
 executables = ["Warframe.x64.exe"]
+
+[games.apex_variants]
+name = "Apex Legends Variants"
+preset = "game_apex"
+executables = ["r5apex_steam.exe"]
