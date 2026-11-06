@@ -112,7 +112,52 @@ PipeWire is experiencing buffer underruns (Xruns) because the user account lacks
 
 ---
 
-### 2.4 Application Audio Not Moving When Dragged in Mixer
+### 2.4 PipeWire Quantum Buffer Underruns & Latency Tuning
+
+#### Symptom:
+Micro-stutters, crackling under high CPU/GPU load during competitive gaming, or `pw-top` displaying rising `ERR` (buffer underrun / Xrun) counts.
+
+#### Cause:
+The active PipeWire quantum buffer size is either set too small for the hardware audio interface's interrupt cycle (causing dropped frames) or application buffer parameters conflict with the global clock rate.
+
+#### Solution:
+1. **Per-Application Latency Override**:
+   Override the buffer latency directly for games or streaming clients using the standard `PIPEWIRE_LATENCY` environment variable:
+   ```bash
+   # In Steam Launch Options or desktop launcher (128 samples = ~2.6 ms @ 48 kHz):
+   PIPEWIRE_LATENCY=128/48000 %command%
+   ```
+2. **On-the-Fly Quantum Configuration via VoiceGG CLI**:
+   Switch the active audio buffer quantum dynamically without restarting your audio graph:
+   ```bash
+   # Recommended balanced esports latency:
+   voicegg set-quantum 128
+
+   # Ultra-low latency for high-end audio interfaces (1.3 ms):
+   voicegg set-quantum 64
+
+   # Safe fallback for high-load workloads or budget USB audio hubs (5.3 ms):
+   voicegg set-quantum 256
+   ```
+3. **Global PipeWire Latency Safeguards**:
+   Lock sensible min/max limits in `~/.config/pipewire/pipewire.conf.d/10-latency.conf`:
+   ```ini
+   context.properties = {
+       default.clock.rate          = 48000
+       default.clock.allowed-rates = [ 48000, 96000 ]
+       default.clock.quantum       = 128
+       default.clock.min-quantum   = 64
+       default.clock.max-quantum   = 1024
+   }
+   ```
+   Apply changes by restarting PipeWire services:
+   ```bash
+   systemctl --user restart pipewire pipewire-pulse wireplumber
+   ```
+
+---
+
+### 2.5 Application Audio Not Moving When Dragged in Mixer
 
 #### Symptom:
 Dragging Spotify or Discord into the Media or Chat channel does not redirect the audio stream.
@@ -136,7 +181,7 @@ Another patchbay (e.g., EasyEffects or Helvum) or a custom WirePlumber script is
 
 ---
 
-### 2.5 Emergency Panic Recovery (Instant Audio Restore)
+### 2.6 Emergency Panic Recovery (Instant Audio Restore)
 
 #### Symptom:
 Audio graph deadlock, no sound coming out of headphones, or unintended feedback loop.

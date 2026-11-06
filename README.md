@@ -225,6 +225,9 @@ VoiceGG creates virtual sink and source nodes directly in the PipeWire graph. Ap
 ### Which Linux distributions are supported?
 VoiceGG is officially developed and packaged for **Arch Linux** and Arch-based distributions (EndeavourOS, Manjaro, Garuda, CachyOS), and runs on any Linux distribution with a modern **PipeWire** audio server (Fedora, Ubuntu 24.04+, Debian 13+, openSUSE).
 
+### How do I eliminate audio crackle or buffer underruns in heavy games?
+Add `PIPEWIRE_LATENCY=128/48000 %command%` to your Steam game launch options (e.g. for CS2 or Apex Legends), or tune the buffer quantum live via `voicegg set-quantum 128`. See the [PipeWire Troubleshooting Guide](docs/TROUBLESHOOTING.md) for detailed latency configuration.
+
 ### How do I cleanly uninstall?
 VoiceGG includes a rootless, safe uninstallation script:
 ```bash
