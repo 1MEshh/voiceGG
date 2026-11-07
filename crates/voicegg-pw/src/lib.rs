@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! PipeWire audio graph integration for VoiceGG.
 //!
 //! Manages virtual playback sinks, virtual capture sources, device discovery,
