@@ -871,7 +871,6 @@ async fn main() -> Result<()> {
     });
 
     let mut sigterm = signal(SignalKind::terminate())?;
-    let mut sighup = signal(SignalKind::hangup())?;
     let mut sigquit = signal(SignalKind::quit())?;
 
     tracing::info!("voicegg-daemon running. Waiting for termination signals...");
@@ -885,9 +884,6 @@ async fn main() -> Result<()> {
         }
         _ = sigterm.recv() => {
             tracing::info!("Shutdown signal received via SIGTERM, cleaning up virtual devices...");
-        }
-        _ = sighup.recv() => {
-            tracing::info!("Shutdown signal received via SIGHUP, cleaning up virtual devices...");
         }
         _ = sigquit.recv() => {
             tracing::info!("Shutdown signal received via SIGQUIT, cleaning up virtual devices...");
