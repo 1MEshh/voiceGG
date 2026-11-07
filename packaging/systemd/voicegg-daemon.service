@@ -7,6 +7,7 @@ Requires=pipewire.service
 [Service]
 Type=simple
 ExecStart=%h/.local/bin/voicegg-daemon
+ExecStopPost=%h/.local/bin/voicegg panic
 Restart=on-failure
 RestartSec=2s
 Nice=-11
@@ -15,7 +16,7 @@ Nice=-11
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%t/voicegg %h/.config/voicegg
+ReadWritePaths=%t/voicegg %h/.config/voicegg %h/.config/pulse %h/.local/state/wireplumber
 
 [Install]
 WantedBy=default.target

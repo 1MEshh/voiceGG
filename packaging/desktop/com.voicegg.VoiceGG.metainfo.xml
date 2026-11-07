@@ -39,6 +39,11 @@
     <keyword>gaming</keyword>
   </keywords>
   <releases>
+    <release version="2.1.0" date="2026-11-07">
+      <description>
+        <p>VoiceGG 2.1.0 release introducing zero-orphan audio lifecycle, kernel-pipe watchdog, safe tray backgrounding, and hardened security policies.</p>
+      </description>
+    </release>
     <release version="2.0.0" date="2026-10-13">
       <description>
         <p>VoiceGG 2.0 release introducing live microphone monitoring, native PipeWire filter chains, authentic Thmanyah design system, and full Arabic RTL localization.</p>

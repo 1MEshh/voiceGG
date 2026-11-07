@@ -1,19 +1,34 @@
 <script lang="ts">
-  import type { SystemStatus, ChannelId } from '../types';
-  import { CHANNELS } from './theme';
+  import type { SystemStatus, AudioDevice } from '../types';
   import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
-  import { X, Settings, AlertTriangle, ShieldCheck, Palette, Cpu, Globe, Hash } from '@lucide/svelte';
-  import { t, locale, numerals, setLanguage } from './i18n';
+  import {
+    X,
+    Settings,
+    AlertTriangle,
+    ShieldCheck,
+    Cpu,
+    Globe,
+    Headphones,
+    Minimize2,
+  } from '@lucide/svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { t, locale, setLanguage } from './i18n';
 
   export let isOpen: boolean;
   export let status: SystemStatus;
   export let onClose: () => void;
   export let onPanicReset: () => void;
-  export let onToggleAutoDetect: (enabled: boolean) => void;
+  export let onToggleAutoDetect: ((enabled: boolean) => void) | undefined = undefined;
   export let onSetQuantum: ((quantum: number) => void) | undefined = undefined;
   export let onSetChannelColor: ((channel: string, color: string) => void) | undefined = undefined;
 
-  let autoDetect = status.config.auto_game_detection ?? true;
+  // Suppress unused warning while maintaining prop compatibility for callers
+  $: if (false) console.log(onSetChannelColor);
+
+  // Reactive state synced with status.config
+  $: autoDetect = status?.config?.auto_game_detection ?? true;
+  $: closeToTray = (status?.config as any)?.close_to_tray ?? true;
+  $: currentQuantum = String(status?.config?.buffer_quantum || 256);
 
   const quantumOptions: SelectOption[] = [
     { value: '64', label: '64 Samples (1.3 ms — Ultra-Low Latency)' },
@@ -23,19 +38,98 @@
     { value: '1024', label: '1024 Samples (21.3 ms — Maximum Buffer)' },
   ];
 
-  $: currentQuantum = String(status.config.buffer_quantum || 256);
+  $: playbackDeviceOptions = [
+    { value: 'default', label: $t('mixer.default_sink') },
+    ...(status?.devices || [])
+      .filter((d) => d.device_type.toLowerCase() === 'sink')
+      .map((d) => ({ value: d.name, label: d.description || d.name })),
+  ];
 
-  function getChannelColor(chId: string, defaultColor: string): string {
-    return status.config.theme?.channels?.[chId as ChannelId]?.accent_hex || defaultColor;
+  $: micDeviceOptions = [
+    { value: 'default', label: $t('mixer.default_source') },
+    ...(status?.devices || [])
+      .filter((d) => d.device_type.toLowerCase() === 'source')
+      .map((d) => ({ value: d.name, label: d.description || d.name })),
+  ];
+
+  async function handleToggleAutoDetect(enabled: boolean) {
+    if (status?.config) {
+      status.config.auto_game_detection = enabled;
+      status = { ...status };
+    }
+    onToggleAutoDetect?.(enabled);
+    try {
+      await invoke('set_auto_game_detection', { enabled });
+    } catch (e) {
+      console.error('Failed to set auto game detection:', e);
+    }
+  }
+
+  async function handleSetCloseToTray(enabled: boolean) {
+    if (status?.config) {
+      (status.config as any).close_to_tray = enabled;
+      status = { ...status };
+    }
+    try {
+      await invoke('set_close_to_tray', { enabled });
+    } catch (e) {
+      console.error('Failed to set close to tray behavior:', e);
+    }
+  }
+
+  async function handleSetAudioDevice(deviceType: 'sink' | 'source', deviceName: string) {
+    if (status?.config) {
+      if (deviceType === 'sink') {
+        status.config.preferred_output_device = deviceName === 'default' ? null : deviceName;
+      } else {
+        status.config.preferred_input_device = deviceName === 'default' ? null : deviceName;
+      }
+      status = { ...status };
+    }
+    try {
+      await invoke('set_audio_device', { deviceType, deviceName });
+    } catch (e) {
+      console.error(`Failed to set ${deviceType} device:`, e);
+    }
+  }
+
+  async function handleSetQuantum(quantumVal: number) {
+    if (status?.config) {
+      status.config.buffer_quantum = quantumVal;
+      status = { ...status };
+    }
+    onSetQuantum?.(quantumVal);
+    try {
+      await invoke('set_quantum', { quantum: quantumVal });
+    } catch (e) {
+      console.error('Failed to set quantum buffer:', e);
+    }
+  }
+
+  function handlePanicReset() {
+    if (confirm($t('settings.confirm_panic'))) {
+      onPanicReset();
+    }
+  }
+
+  async function handleQuit() {
+    if (confirm($t('settings.confirm_quit'))) {
+      try {
+        await invoke('quit_app');
+      } catch (e) {
+        console.error('Failed to quit app:', e);
+      }
+    }
   }
 </script>
+
+<svelte:window on:keydown={(e) => { if (isOpen && e.key === 'Escape') onClose(); }} />
 
 {#if isOpen}
   <div
     class="modal-backdrop"
     role="presentation"
     on:click={onClose}
-    on:keydown={(e) => e.key === 'Escape' && onClose()}
   >
     <div
       class="modal-window"
@@ -89,36 +183,79 @@
               </button>
             </div>
           </div>
+        </div>
 
+        <!-- Window Close Behavior Section -->
+        <div class="setting-section">
+          <div class="section-title-row">
+            <Minimize2 size={16} color="var(--color-accent-info)" />
+            <span class="section-title">{$t('settings.close_behavior')}</span>
+          </div>
           <div class="setting-card">
             <div class="card-left">
-              <span class="card-label">{$t('settings.numerals')}</span>
-              <span class="card-desc">{$t('settings.numerals_desc')}</span>
+              <span class="card-label">{$t('settings.close_behavior')}</span>
+              <span class="card-desc">{$t('settings.close_behavior_desc')}</span>
             </div>
             <div class="lang-selector">
               <button
                 type="button"
                 class="lang-pill"
-                class:active={$numerals === 'western'}
-                aria-pressed={$numerals === 'western'}
-                on:click={() => numerals.set('western')}
+                class:active={closeToTray}
+                aria-pressed={closeToTray}
+                on:click={() => handleSetCloseToTray(true)}
               >
-                {$t('settings.numerals_western')}
+                {$t('settings.close_to_tray')}
               </button>
               <button
                 type="button"
                 class="lang-pill"
-                class:active={$numerals === 'eastern'}
-                aria-pressed={$numerals === 'eastern'}
-                on:click={() => numerals.set('eastern')}
+                class:active={!closeToTray}
+                aria-pressed={!closeToTray}
+                on:click={() => handleSetCloseToTray(false)}
               >
-                {$t('settings.numerals_eastern')}
+                {$t('settings.close_and_quit')}
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Audio Safety Section -->
+        <!-- Hardware Audio Devices Section -->
+        <div class="setting-section">
+          <div class="section-title-row">
+            <Headphones size={16} color="var(--color-accent-brand)" />
+            <span class="section-title">{$t('settings.devices_section')}</span>
+          </div>
+          <div class="setting-card">
+            <div class="card-left">
+              <span class="card-label">{$t('mixer.playback_device')}</span>
+              <span class="card-desc">{$t('settings.playback_device_desc')}</span>
+            </div>
+            <div class="device-select-wrapper">
+              <CustomSelect
+                value={status?.config?.preferred_output_device || 'default'}
+                options={playbackDeviceOptions}
+                size="sm"
+                onChange={(val) => handleSetAudioDevice('sink', val)}
+              />
+            </div>
+          </div>
+          <div class="setting-card">
+            <div class="card-left">
+              <span class="card-label">{$t('mixer.microphone')}</span>
+              <span class="card-desc">{$t('settings.mic_device_desc')}</span>
+            </div>
+            <div class="device-select-wrapper">
+              <CustomSelect
+                value={status?.config?.preferred_input_device || 'default'}
+                options={micDeviceOptions}
+                size="sm"
+                onChange={(val) => handleSetAudioDevice('source', val)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio Safety & Quantum Section -->
         <div class="setting-section">
           <div class="section-title-row">
             <ShieldCheck size={16} color="var(--color-accent-success)" />
@@ -141,7 +278,7 @@
                 value={currentQuantum}
                 options={quantumOptions}
                 size="sm"
-                onChange={(val) => onSetQuantum?.(Number(val))}
+                onChange={(val) => handleSetQuantum(Number(val))}
               />
             </div>
           </div>
@@ -162,42 +299,15 @@
               <input
                 type="checkbox"
                 aria-label={$t('settings.toggle_auto_game_aria')}
-                bind:checked={autoDetect}
-                on:change={() => onToggleAutoDetect(autoDetect)}
+                checked={autoDetect}
+                on:change={(e) => handleToggleAutoDetect(e.currentTarget.checked)}
               />
               <span class="toggle-slider"></span>
             </label>
           </div>
         </div>
 
-        <!-- Custom Channel Colors -->
-        <div class="setting-section">
-          <div class="section-title-row">
-            <Palette size={16} color="var(--color-channel-media)" />
-            <span class="section-title">{$t('settings.channel_colors')}</span>
-          </div>
-          <div class="color-pickers-grid">
-            {#each Object.entries(CHANNELS) as [id, info]}
-              {@const label = $t(`channels.${id}`) || info.label}
-              {@const color = getChannelColor(id, info.defaultColor)}
-              <div class="color-item">
-                <span class="color-label">{label}</span>
-                <div class="color-input-wrapper">
-                  <input
-                    type="color"
-                    aria-label={$t('settings.color_aria', { channel: label })}
-                    value={color}
-                    class="color-input"
-                    on:input={(e) => onSetChannelColor?.(id, e.currentTarget.value)}
-                  />
-                  <span class="color-hex tabular-nums">{color.toUpperCase()}</span>
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-        <!-- Emergency Reset -->
+        <!-- Emergency Reset & Shutdown -->
         <div class="setting-section danger-section">
           <div class="section-title-row">
             <AlertTriangle size={16} color="var(--color-accent-danger)" />
@@ -211,9 +321,22 @@
             <button
               class="danger-btn"
               aria-label={$t('settings.restore_aria')}
-              on:click={onPanicReset}
+              on:click={handlePanicReset}
             >
               {$t('settings.restore_defaults')}
+            </button>
+          </div>
+          <div class="danger-card">
+            <div class="card-left">
+              <span class="card-label">{$t('settings.quit_title')}</span>
+              <span class="card-desc">{$t('settings.quit_desc')}</span>
+            </div>
+            <button
+              class="danger-btn quit-action-btn"
+              aria-label={$t('settings.quit_title')}
+              on:click={handleQuit}
+            >
+              {$t('settings.quit_btn')}
             </button>
           </div>
         </div>
@@ -241,7 +364,7 @@
   }
 
   .modal-window {
-    width: 650px;
+    width: 660px;
     max-height: 85vh;
     background: var(--color-surface-1);
     border: 1px solid var(--color-border-default);
@@ -346,6 +469,8 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+    flex: 1;
+    min-width: 0;
   }
 
   .card-label {
@@ -423,52 +548,10 @@
     border-color: var(--color-accent-brand);
   }
 
-  .color-pickers-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-
-  .color-item {
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .color-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-secondary);
-  }
-
-  .quantum-select-wrapper {
-    width: 260px;
-  }
-
-  .color-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .color-hex {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-  }
-
-  .color-input {
-    border: 1px solid var(--color-border-bright);
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    background: transparent;
+  .quantum-select-wrapper,
+  .device-select-wrapper {
+    width: 280px;
+    flex-shrink: 0;
   }
 
   .danger-btn {
@@ -484,10 +567,20 @@
     cursor: pointer;
     white-space: nowrap;
     transition: background-color var(--transition-fast);
+    flex-shrink: 0;
   }
 
   .danger-btn:hover {
     background: #DC2626;
+  }
+
+  .quit-action-btn {
+    background: #dc2626;
+    border: 1px solid #b91c1c;
+  }
+
+  .quit-action-btn:hover {
+    background: #b91c1c;
   }
 
   .lang-selector {
@@ -497,6 +590,7 @@
     padding: 4px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--color-border-default);
+    flex-shrink: 0;
   }
 
   .lang-pill {
@@ -510,6 +604,7 @@
     font-family: var(--font-sans);
     cursor: pointer;
     transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+    white-space: nowrap;
   }
 
   .lang-pill:hover {

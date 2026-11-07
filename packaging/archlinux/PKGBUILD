@@ -1,6 +1,6 @@
 # Maintainer: 1MEshh <https://github.com/1MEshh>
 pkgname=voicegg-bin
-pkgver=2.0.0
+pkgver=2.1.0
 pkgrel=1
 pkgdesc="The ultra-fast SteelSeries Sonar & SteelSeries GG alternative for Linux & PipeWire"
 arch=('x86_64')
