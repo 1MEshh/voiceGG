@@ -69,4 +69,4 @@ executables = ["League of Legends.exe"]
 [games.minecraft]
 name = "Minecraft"
 preset = "game_minecraft"
-executables = ["java", "javaw.exe"]
+executables = ["minecraft-launcher", "javaw.exe"]

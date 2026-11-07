@@ -6,6 +6,7 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Embedded fallback games database in case configuration files are missing.
@@ -75,7 +76,7 @@ impl GameDetector {
         }
     }
 
-    /// Matches a process command line or executable name against the games database.
+    /// Matches a process command line or executable name against the games database in deterministic order.
     pub fn match_executable(&self, comm: &str, cmdline: &str) -> Option<DetectedGame> {
         let clean_comm = comm.trim().trim_end_matches('\0');
         let lower_comm = clean_comm.to_ascii_lowercase();
@@ -88,13 +89,27 @@ impl GameDetector {
             .unwrap_or("")
             .to_ascii_lowercase();
 
-        for (id, game) in &self.games {
+        let lower_cmdline = cmdline.to_ascii_lowercase();
+
+        let mut sorted_games: Vec<(&String, &GameEntry)> = self.games.iter().collect();
+        sorted_games.sort_by_key(|(id, _)| *id);
+
+        for (id, game) in sorted_games {
             for exe in &game.executables {
                 let lower_exe = exe.to_ascii_lowercase();
-                if lower_comm == lower_exe
-                    || base_name == lower_exe
-                    || cmdline.to_ascii_lowercase().contains(&lower_exe)
-                {
+                let lower_exe_no_ext = lower_exe.strip_suffix(".exe").unwrap_or(&lower_exe);
+
+                // Direct match on comm (full or stripped .exe)
+                let comm_match = lower_comm == lower_exe || lower_comm == lower_exe_no_ext;
+
+                // Direct match on base_name
+                let base_match = base_name == lower_exe || base_name == lower_exe_no_ext;
+
+                // Proton/Wine match inside command line
+                let cmdline_match = lower_cmdline.contains(&lower_exe)
+                    || (lower_exe.ends_with(".exe") && lower_cmdline.contains(lower_exe_no_ext));
+
+                if comm_match || base_match || cmdline_match {
                     return Some(DetectedGame {
                         id: id.clone(),
                         name: game.name.clone(),
@@ -111,22 +126,36 @@ impl GameDetector {
         None
     }
 
-    /// Scans `/proc` for processes belonging to the current user.
+    /// Scans `/proc` deterministically for processes belonging strictly to the current user's UID.
     pub fn scan_processes(&self) -> Option<DetectedGame> {
+        let my_uid = fs::metadata("/proc/self").map(|m| m.uid()).ok();
         let proc_dir = fs::read_dir("/proc").ok()?;
 
+        let mut pids: Vec<u32> = Vec::new();
         for entry in proc_dir.flatten() {
             let file_name = entry.file_name();
-            let pid_str = file_name.to_str()?;
-
-            // Only examine numeric PID directories
-            if !pid_str.chars().all(|c| c.is_ascii_digit()) {
-                continue;
+            if let Some(pid_str) = file_name.to_str() {
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    // Filter to current user's UID
+                    if let Some(uid) = my_uid {
+                        if let Ok(meta) = entry.metadata() {
+                            if meta.uid() != uid {
+                                continue;
+                            }
+                        }
+                    }
+                    pids.push(pid);
+                }
             }
+        }
 
-            let path = entry.path();
-            let comm_path = path.join("comm");
-            let cmdline_path = path.join("cmdline");
+        // Sort PIDs ascending for deterministic scan order
+        pids.sort_unstable();
+
+        for pid in pids {
+            let proc_path = PathBuf::from(format!("/proc/{pid}"));
+            let comm_path = proc_path.join("comm");
+            let cmdline_path = proc_path.join("cmdline");
 
             let comm = fs::read_to_string(comm_path).unwrap_or_default();
             let cmdline = fs::read_to_string(cmdline_path).unwrap_or_default();
@@ -206,6 +235,74 @@ mod tests {
         let game = matched.unwrap();
         assert_eq!(game.id, "warzone");
         assert_eq!(game.preset_id, "game_warzone");
+    }
+
+    #[test]
+    fn test_match_the_finals() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "Discovery.exe",
+            "C:\\Steam\\steamapps\\common\\The Finals\\Discovery.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "finals");
+        assert_eq!(game.name, "The Finals");
+        assert_eq!(game.preset_id, "game_finals");
+    }
+
+    #[test]
+    fn test_match_rust() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "RustClient.exe",
+            "C:\\Steam\\steamapps\\common\\Rust\\RustClient.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "rust");
+        assert_eq!(game.name, "Rust");
+        assert_eq!(game.preset_id, "game_rust");
+    }
+
+    #[test]
+    fn test_match_dota2() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "dota2",
+            "/home/user/.steam/steamapps/common/dota 2 beta/game/bin/linuxsteamrt64/dota2",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "dota2");
+        assert_eq!(game.name, "Dota 2");
+        assert_eq!(game.preset_id, "game_dota2");
+    }
+
+    #[test]
+    fn test_match_league() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "League of Legends.exe",
+            "C:\\Riot Games\\League of Legends\\League of Legends.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "league");
+        assert_eq!(game.preset_id, "game_league");
+    }
+
+    #[test]
+    fn test_match_minecraft() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "javaw.exe",
+            "C:\\Program Files\\Java\\bin\\javaw.exe -jar minecraft.jar",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "minecraft");
+        assert_eq!(game.preset_id, "game_minecraft");
     }
 
     #[test]
