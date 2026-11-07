@@ -180,12 +180,14 @@ impl RequestHandler for DaemonHandler {
                 binary_name,
                 target_channel,
             } => {
-                let clean_name = binary_name.trim();
+                let raw_trimmed = binary_name.trim();
+                let clean_name = std::path::Path::new(raw_trimmed)
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .unwrap_or(raw_trimmed);
                 if clean_name.is_empty()
                     || clean_name.len() > 128
                     || clean_name.contains('\0')
-                    || clean_name.contains('/')
-                    || clean_name.contains('\\')
                     || clean_name.chars().any(|c| c.is_control())
                 {
                     tracing::warn!(

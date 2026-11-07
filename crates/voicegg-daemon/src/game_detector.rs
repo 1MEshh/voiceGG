@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Embedded fallback games database in case configuration files are missing.
 const EMBEDDED_GAMES_TOML: &str = include_str!("../../../presets/games.toml");
@@ -83,13 +83,13 @@ impl GameDetector {
 
         // Extract binary base name from cmdline if available
         let first_arg = cmdline.split('\0').next().unwrap_or(cmdline);
-        let base_name = Path::new(first_arg)
-            .file_name()
-            .and_then(|f| f.to_str())
+        let first_arg = first_arg.split_whitespace().next().unwrap_or(first_arg);
+        let normalized_first = first_arg.replace('\\', "/");
+        let base_name = normalized_first
+            .rsplit('/')
+            .next()
             .unwrap_or("")
             .to_ascii_lowercase();
-
-        let lower_cmdline = cmdline.to_ascii_lowercase();
 
         let mut sorted_games: Vec<(&String, &GameEntry)> = self.games.iter().collect();
         sorted_games.sort_by_key(|(id, _)| *id);
@@ -105,9 +105,18 @@ impl GameDetector {
                 // Direct match on base_name
                 let base_match = base_name == lower_exe || base_name == lower_exe_no_ext;
 
-                // Proton/Wine match inside command line
-                let cmdline_match = lower_cmdline.contains(&lower_exe)
-                    || (lower_exe.ends_with(".exe") && lower_cmdline.contains(lower_exe_no_ext));
+                // Proton/Wine match inside command line args:
+                // Check if any arg (split by \0 or whitespace) has an exact file component matching exe
+                let cmdline_match = cmdline.split(|c| c == '\0' || c == ' ').any(|arg| {
+                    let trimmed = arg.trim();
+                    if trimmed.is_empty() {
+                        return false;
+                    }
+                    let lower_arg = trimmed.to_ascii_lowercase();
+                    let norm = lower_arg.replace('\\', "/");
+                    let file = norm.rsplit('/').next().unwrap_or(&norm);
+                    file == lower_exe || (lower_exe.ends_with(".exe") && file == lower_exe_no_ext)
+                });
 
                 if comm_match || base_match || cmdline_match {
                     return Some(DetectedGame {
@@ -310,5 +319,18 @@ mod tests {
         let detector = GameDetector::new();
         let matched = detector.match_executable("firefox", "/usr/lib/firefox/firefox");
         assert!(matched.is_none());
+    }
+
+    #[test]
+    fn test_no_match_for_ide_or_hash_containing_cod() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "antigravity",
+            "/opt/antigravity/antigravity --enable-crash-reporter=0a46ae67-280f-4ca8-a13f-8c5f6fb --lang=en-US",
+        );
+        assert!(matched.is_none());
+
+        let matched_vscode = detector.match_executable("code", "/usr/share/code/code");
+        assert!(matched_vscode.is_none());
     }
 }

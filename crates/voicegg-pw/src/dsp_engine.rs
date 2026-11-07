@@ -837,7 +837,7 @@ impl DspEngine {
                                     "--raw",
                                     "--latency-msec=5",
                                     "--device",
-                                    "voicegg_source_stream_mix",
+                                    "voicegg_stream_mix_sink",
                                     "--property=media.role=filter",
                                     &format!("--property=application.name=VoiceGG {channel} StreamMix"),
                                     "--property=node.passive=true",
@@ -942,7 +942,7 @@ impl DspEngine {
         let children_for_thread = children_holder.clone();
 
         let source_device_opt = source_device.map(|s| s.to_string());
-        let target_sink_str = target_sink.unwrap_or("voicegg_source_mic").to_string();
+        let target_sink_str = target_sink.unwrap_or("voicegg_mic_sink").to_string();
 
         let thread = std::thread::Builder::new()
             .name("voicegg-mic-worker".to_string())
@@ -1121,7 +1121,7 @@ impl DspEngine {
                                     "--raw",
                                     "--latency-msec=5",
                                     "--device",
-                                    "voicegg_source_stream_mix",
+                                    "voicegg_stream_mix_sink",
                                     "--property=media.role=filter",
                                     "--property=application.name=VoiceGG Mic StreamMix",
                                     "--property=node.passive=true",

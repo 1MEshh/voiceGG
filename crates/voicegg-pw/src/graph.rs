@@ -656,6 +656,41 @@ impl GraphManager {
         Ok(module_id)
     }
 
+    fn load_remap_source(&mut self, master: &str, name: &str, desc: &str) -> Result<u32> {
+        let master_arg = format!("master={master}");
+        let name_arg = format!("source_name={name}");
+        let prop_arg = format!("source_properties=device.description='{desc}'");
+
+        let output = pactl_cmd()
+            .args([
+                "load-module",
+                "module-remap-source",
+                &master_arg,
+                &name_arg,
+                &prop_arg,
+            ])
+            .output()
+            .map_err(|e| {
+                PwError::Generic(format!("Failed to execute pactl load-module remap-source: {e}"))
+            })?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(PwError::Generic(format!(
+                "Failed to create virtual remap source '{name}': {err}"
+            )));
+        }
+
+        let out_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let module_id: u32 = out_str.parse().map_err(|_| {
+            PwError::Generic(format!("pactl did not return a valid module ID: {out_str}"))
+        })?;
+
+        self.state.loaded_modules.push(module_id);
+        self.save_state();
+        Ok(module_id)
+    }
+
     fn load_loopback(&mut self, source: &str, sink: &str, node_name: &str) -> Result<u32> {
         // SAFETY GUARD: Check for cycles before creating loopback
         if self.cycle_detector.would_cycle(source, sink) {
@@ -794,14 +829,26 @@ impl GraphManager {
         self.load_null_sink("voicegg_sink_chat", "VoiceGG Voice Chat", false)?;
         self.load_null_sink("voicegg_sink_media", "VoiceGG Media Audio", false)?;
         self.load_null_sink("voicegg_sink_aux", "VoiceGG Aux Audio", false)?;
-        self.load_null_sink("voicegg_source_mic", "VoiceGG Processed Microphone", true)?;
+
+        // Virtual Microphone: dedicated isolated playback sink + remap-source
+        self.load_null_sink("voicegg_mic_sink", "VoiceGG Microphone Internal Sink", false)?;
+        self.load_remap_source(
+            "voicegg_mic_sink.monitor",
+            "voicegg_source_mic",
+            "VoiceGG Processed Microphone",
+        )?;
 
         // Only create stream mix if streamer_mode is true
         if self.streamer_mode {
-            let mod_id = self.load_null_sink(
+            self.load_null_sink(
+                "voicegg_stream_mix_sink",
+                "VoiceGG Stream Mix Internal Sink",
+                false,
+            )?;
+            let mod_id = self.load_remap_source(
+                "voicegg_stream_mix_sink.monitor",
                 "voicegg_source_stream_mix",
                 "VoiceGG Stream Mix",
-                true,
             )?;
             self.state.stream_mix_module = Some(mod_id);
         }
@@ -837,7 +884,7 @@ impl GraphManager {
                 .spawn_playback_worker(ch, &src, "voicegg_sink_master");
         }
 
-        // 5. Spawn mic capture DSP worker directly to voicegg_source_mic with verified physical source
+        // 5. Spawn mic capture DSP worker directly to isolated voicegg_mic_sink with verified physical source
         let physical_source = self
             .active_hardware_source
             .as_ref()
@@ -846,7 +893,7 @@ impl GraphManager {
 
         self.dsp_engine.spawn_mic_worker(
             physical_source.as_deref(),
-            Some("voicegg_source_mic"),
+            Some("voicegg_mic_sink"),
         );
 
         // 6. Set VoiceGG as system default sink & source for instant routing
@@ -1466,7 +1513,7 @@ impl GraphManager {
         self.state.active_hardware_source = Some(target.clone());
         tracing::info!("Switching VoiceGG Mic input to '{}'", target);
         self.dsp_engine
-            .spawn_mic_worker(Some(&target), Some("voicegg_source_mic"));
+            .spawn_mic_worker(Some(&target), Some("voicegg_mic_sink"));
         self.save_state();
         Ok(())
     }
@@ -1605,17 +1652,37 @@ impl GraphManager {
     pub fn set_streamer_mode(&mut self, enabled: bool) -> Result<()> {
         if enabled {
             if self.state.stream_mix_module.is_none() {
-                let mod_id = self.load_null_sink(
+                let _ = self.load_null_sink(
+                    "voicegg_stream_mix_sink",
+                    "VoiceGG Stream Mix Internal Sink",
+                    false,
+                )?;
+                let mod_id = self.load_remap_source(
+                    "voicegg_stream_mix_sink.monitor",
                     "voicegg_source_stream_mix",
                     "VoiceGG Stream Mix",
-                    true,
                 )?;
                 self.state.stream_mix_module = Some(mod_id);
                 self.save_state();
             }
-        } else if let Some(mod_id) = self.state.stream_mix_module.take() {
-            let _ = pactl_cmd().args(["unload-module", &mod_id.to_string()]).output();
-            self.state.loaded_modules.retain(|&id| id != mod_id);
+        } else {
+            if let Some(mod_id) = self.state.stream_mix_module.take() {
+                let _ = pactl_cmd().args(["unload-module", &mod_id.to_string()]).output();
+                self.state.loaded_modules.retain(|&id| id != mod_id);
+            }
+            if let Ok(output) = pactl_cmd().args(["list", "modules", "short"]).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines() {
+                    if line.contains("voicegg_stream_mix") {
+                        if let Some(id_str) = line.split('\t').next() {
+                            if let Ok(id) = id_str.trim().parse::<u32>() {
+                                let _ = pactl_cmd().args(["unload-module", &id.to_string()]).output();
+                                self.state.loaded_modules.retain(|&m_id| m_id != id);
+                            }
+                        }
+                    }
+                }
+            }
             self.save_state();
         }
         self.streamer_mode = enabled;
