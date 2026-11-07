@@ -634,15 +634,15 @@ pub fn run() {
             };
 
             // Single-instance GUI listener
-            let socket_path = gui_socket_path();
-            if let Some(parent) = socket_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::remove_file(&socket_path);
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let socket_path = gui_socket_path();
+                if let Some(parent) = socket_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::remove_file(&socket_path);
 
-            if let Ok(listener) = tokio::net::UnixListener::bind(&socket_path) {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
+                if let Ok(listener) = tokio::net::UnixListener::bind(&socket_path) {
                     loop {
                         if let Ok((mut stream, _)) = listener.accept().await {
                             use tokio::io::AsyncReadExt;
@@ -658,8 +658,8 @@ pub fn run() {
                             }
                         }
                     }
-                });
-            }
+                }
+            });
 
             // Sync close_to_tray setting from daemon config on startup
             let init_app = app.handle().clone();
