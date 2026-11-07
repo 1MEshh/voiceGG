@@ -1,7 +1,7 @@
 /**
- * VoiceGG 2.0 Design Tokens
+ * VoiceGG 3.0 Design Tokens
  * 3-Tier Architecture: Primitives -> Semantic -> Components
- * Theme: SteelSeries Sonar Pro-Audio Dark Slate with Thmanyah Typography
+ * Theme: Authentic SteelSeries GG Sonar Dark Matte Studio with Thmanyah Typography
  */
 
 :root {
@@ -9,14 +9,14 @@
      Tier 1: Primitives
      ========================================================================== */
 
-  /* Neutrals: Rich Pro-Audio Dark Slate */
-  --color-neutral-950: #07090D;
-  --color-neutral-900: #0B0E14; /* App workspace background */
-  --color-neutral-850: #11151F; /* Surface 1: Cards & Panels */
-  --color-neutral-800: #161B26; /* Surface 2: Elevated Wells & Sub-panels */
-  --color-neutral-750: #1D2333; /* Surface 3: Controls, Sliders & Chips */
-  --color-neutral-700: #252D40; /* Surface Hover & Active States */
-  --color-neutral-600: #333D56; /* Active borders / high contrast */
+  /* Neutrals: Authentic SteelSeries GG Sonar Dark Matte Studio */
+  --color-neutral-950: #08090C;
+  --color-neutral-900: #0C0E12; /* Main app background */
+  --color-neutral-850: #12151B; /* Channel strip / panel surface */
+  --color-neutral-800: #171B22; /* Card / control well surface */
+  --color-neutral-750: #1E232D; /* Input / button / chip surface */
+  --color-neutral-700: #262C38; /* Hover surface */
+  --color-neutral-600: #333B4B; /* Active borders / high contrast */
   --color-neutral-500: #64748B; /* Slate 500: Muted text / labels */
   --color-neutral-400: #94A3B8; /* Slate 400: Secondary text / icons */
   --color-neutral-300: #CBD5E1; /* Slate 300: Subtle text */
@@ -25,10 +25,10 @@
   --color-neutral-50:  #F8FAFC; /* Slate 50: Primary foreground */
 
   /* Borders: Crisp 1px definition */
-  --color-border-subtle: #1C2230;
-  --color-border-default: #1F2637;
-  --color-border-bright: #2A344A;
-  --color-border-focus: #3B4660;
+  --color-border-subtle: #1C2029;
+  --color-border-default: #232834;
+  --color-border-bright: #2F3646;
+  --color-border-focus: #3B4458;
 
   /* Typography */
   --font-sans: 'thmanyah sans', 'IBM Plex Sans Arabic', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -46,28 +46,29 @@
   --color-accent-danger-subtle: rgba(239, 68, 68, 0.12);
   --color-accent-warning: #F59E0B;
   --color-accent-warning-subtle: rgba(245, 158, 11, 0.12);
-  --color-accent-success: #10B981;
-  --color-accent-success-subtle: rgba(16, 185, 129, 0.12);
-  --color-accent-info: #0EA5E9;
-  --color-accent-info-subtle: rgba(14, 165, 233, 0.12);
+  --color-accent-success: #00E599;
+  --color-accent-success-subtle: rgba(0, 229, 153, 0.12);
+  --color-accent-info: #00B4D8;
+  --color-accent-info-subtle: rgba(0, 180, 216, 0.12);
 
-  /* Channel Accents (Sonar Spec - used sparingly) */
-  --color-channel-master: #E2E8F0;
-  --color-channel-game: #10B981;
-  --color-channel-chat: #0EA5E9;
-  --color-channel-media: #EC4899;
-  --color-channel-aux: #8B5CF6;
-  --color-channel-mic: #F97316;
+  /* Channel Accents (Authentic SteelSeries GG Sonar Spec) */
+  --color-channel-master: #F8FAFC;
+  --color-channel-game: #00E599;
+  --color-channel-chat: #00B4D8;
+  --color-channel-media: #3B82F6;
+  --color-channel-aux: #64748B;
+  --color-channel-mic: #FF5200;
 
   /* Radii: Crisp geometric corners */
+  --radius-xs: 3px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
 
   /* Elevation: Clean 1px structural depth without neon slop */
-  --shadow-depth-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-depth-md: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-depth-lg: 0 6px 20px rgba(0, 0, 0, 0.55);
+  --shadow-depth-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-depth-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-depth-lg: 0 6px 20px rgba(0, 0, 0, 0.6);
 
   /* Motion */
   --transition-fast: 120ms ease-out;
@@ -102,7 +103,7 @@
      ========================================================================== */
 
   --fader-thumb-bg: var(--color-neutral-200);
-  --fader-thumb-border: #1E293B;
+  --fader-thumb-border: #171B22;
   --fader-thumb-indicator: var(--color-accent-brand);
   --meter-bar-width: 6px;
 }

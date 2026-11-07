@@ -1,12 +1,13 @@
 <script context="module" lang="ts">
   export function volumeToDb(vol: number): string {
-    if (vol <= 0) return '-\u221E dB';
+    if (vol <= 0) return '-∞ dB';
     const db = 20 * Math.log10(vol / 100);
     return (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
   }
 </script>
 
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { ChannelMeter } from '../types';
 
   export let value: number = 100; // 0 to 150
@@ -17,9 +18,43 @@
 
   let trackEl: HTMLElement | null = null;
   let isDragging = false;
+  let localValue = value;
+  let rafId: number | null = null;
+  let pendingValue: number | null = null;
 
-  $: displayDb = volumeToDb(value);
-  $: sliderPositionPct = Math.min(100, Math.max(0, (value / 150) * 100));
+  function scheduleEmit(val: number, immediate = false) {
+    if (!onChange) return;
+    pendingValue = val;
+    if (immediate) {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      onChange(val);
+      pendingValue = null;
+      return;
+    }
+    if (rafId === null) {
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (pendingValue !== null && onChange) {
+          onChange(pendingValue);
+          pendingValue = null;
+        }
+      });
+    }
+  }
+
+  onDestroy(() => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+  });
+
+  $: if (!isDragging) {
+    localValue = value;
+  }
+
+  $: displayDb = volumeToDb(localValue);
+  $: sliderPositionPct = Math.min(100, Math.max(0, (localValue / 150) * 100));
 
   // Meter calculations: -60 dBFS to 0 dBFS mapped to 0% - 100%
   $: peakNorm = meter ? Math.max(0, Math.min(100, ((meter.peak_dbfs + 60) / 60) * 100)) : 0;
@@ -36,16 +71,17 @@
     const ratio = Math.max(0, Math.min(1, offset / height));
     const newVal = Math.round(ratio * 150);
 
-    if (newVal !== value) {
+    if (newVal !== localValue) {
+      localValue = newVal;
       value = newVal;
-      if (onChange) onChange(value);
+      scheduleEmit(newVal, false);
     }
   }
 
   function handlePointerDown(e: PointerEvent) {
     if (disabled || e.button !== 0) return;
     isDragging = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     updateFromPointer(e.clientY);
   }
 
@@ -58,27 +94,29 @@
     if (!isDragging) return;
     isDragging = false;
     try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       // Ignored if capture already released
     }
+    scheduleEmit(localValue, true);
   }
 
   function handleDoubleClick() {
     if (disabled) return;
-    // Unity gain reset (0 dB / 100%)
+    localValue = 100;
     value = 100;
-    if (onChange) onChange(value);
+    scheduleEmit(100, true);
   }
 
   function handleWheel(e: WheelEvent) {
     if (disabled) return;
     e.preventDefault();
     const delta = e.deltaY < 0 ? 2 : -2;
-    const newVal = Math.max(0, Math.min(150, value + delta));
-    if (newVal !== value) {
+    const newVal = Math.max(0, Math.min(150, localValue + delta));
+    if (newVal !== localValue) {
+      localValue = newVal;
       value = newVal;
-      if (onChange) onChange(value);
+      scheduleEmit(newVal, false);
     }
   }
 
@@ -88,21 +126,24 @@
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') step = e.shiftKey ? 5 : 1;
     else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') step = e.shiftKey ? -5 : -1;
     else if (e.key === 'Home') {
+      localValue = 150;
       value = 150;
-      if (onChange) onChange(value);
+      scheduleEmit(150, true);
       return;
     } else if (e.key === 'End') {
+      localValue = 0;
       value = 0;
-      if (onChange) onChange(value);
+      scheduleEmit(0, true);
       return;
     }
 
     if (step !== 0) {
       e.preventDefault();
-      const newVal = Math.max(0, Math.min(150, value + step));
-      if (newVal !== value) {
+      const newVal = Math.max(0, Math.min(150, localValue + step));
+      if (newVal !== localValue) {
+        localValue = newVal;
         value = newVal;
-        if (onChange) onChange(value);
+        scheduleEmit(newVal, true);
       }
     }
   }
@@ -114,7 +155,6 @@
   class:is-dragging={isDragging}
   on:wheel={handleWheel}
 >
-  <!-- Fader Console Bay -->
   <div class="fader-bay">
     <!-- Scale Ticks Left -->
     <div class="scale-ticks">
@@ -122,7 +162,7 @@
       <div class="tick-label zero" style="bottom: 66.7%;">0 dB</div>
       <div class="tick-label minus6" style="bottom: 33.3%;">-6</div>
       <div class="tick-label minus12" style="bottom: 16.7%;">-12</div>
-      <div class="tick-label bottom" style="bottom: 0%;">-\u221E</div>
+      <div class="tick-label bottom" style="bottom: 0%;">-∞</div>
     </div>
 
     <!-- Active Fader Rail & Thumb -->
@@ -141,13 +181,11 @@
       aria-label="Channel Volume Fader"
       aria-valuemin="0"
       aria-valuemax="150"
-      aria-valuenow={value}
-      aria-valuetext="{value}% ({displayDb})"
+      aria-valuenow={localValue}
+      aria-valuetext="{localValue}% ({displayDb})"
     >
-      <!-- Unity Gain 0dB Guideline -->
       <div class="unity-gain-line" style="bottom: 66.7%;"></div>
 
-      <!-- Center Slot Track -->
       <div class="rail-slot">
         <div
           class="rail-fill"
@@ -155,7 +193,6 @@
         ></div>
       </div>
 
-      <!-- Tactile Hardware Thumb -->
       <div
         class="fader-thumb"
         style="bottom: calc({sliderPositionPct}% - 9px);"
@@ -167,22 +204,18 @@
     <!-- Live LED Segment Meter -->
     <div class="fader-meter">
       <div class="meter-channel-bar">
-        <!-- RMS Level Bar (Solid) -->
         <div class="meter-level rms" style="height: {rmsNorm}%;"></div>
-        <!-- Peak Level Line (Bright Top Marker) -->
         {#if peakNorm > 1}
           <div class="meter-peak-marker" style="bottom: {peakNorm}%;"></div>
         {/if}
       </div>
-      <!-- Zero dBFS Clip Warning LED -->
       <div class="clip-indicator" class:clipped={peakNorm >= 98}></div>
     </div>
   </div>
 
-  <!-- Readout Display -->
   <div class="readout-block">
     <span class="db-val">{displayDb}</span>
-    <span class="pct-val">{value}%</span>
+    <span class="pct-val">{localValue}%</span>
   </div>
 </div>
 
@@ -201,12 +234,11 @@
     align-items: stretch;
     justify-content: center;
     gap: 7px;
-    height: 180px;
+    height: 176px;
     position: relative;
     padding: 6px 0;
   }
 
-  /* Scale Ticks */
   .scale-ticks {
     position: relative;
     width: 22px;
@@ -220,17 +252,16 @@
     font-size: 0.625rem;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    color: var(--color-neutral-500, #64748b);
+    color: var(--color-neutral-500, #64748B);
     line-height: 1;
     pointer-events: none;
   }
 
   .tick-label.zero {
-    color: var(--color-neutral-200, #e2e8f0);
+    color: var(--color-neutral-200, #E2E8F0);
     font-weight: 700;
   }
 
-  /* Fader Rail */
   .fader-track-rail {
     position: relative;
     width: 24px;
@@ -241,7 +272,7 @@
   }
 
   .fader-track-rail:focus-visible .fader-thumb {
-    outline: 2px solid var(--color-accent-brand, #ff5200);
+    outline: 2px solid var(--color-accent-brand, #FF5200);
     outline-offset: 2px;
   }
 
@@ -250,7 +281,7 @@
     left: -2px;
     right: -2px;
     height: 1px;
-    background: var(--color-neutral-600, #333d56);
+    background: var(--color-border-bright, #2F3646);
     pointer-events: none;
     z-index: 1;
   }
@@ -262,8 +293,8 @@
     bottom: 0;
     width: 4px;
     transform: translateX(-50%);
-    background: var(--color-neutral-950, #07090d);
-    border: 1px solid var(--color-border-default, #1f2637);
+    background: var(--color-neutral-950, #08090C);
+    border: 1px solid var(--color-border-default, #232834);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -273,21 +304,20 @@
     bottom: 0;
     left: 0;
     right: 0;
-    opacity: 0.35;
+    opacity: 0.45;
     pointer-events: none;
   }
 
-  /* Tactile Hardware Thumb */
   .fader-thumb {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     width: 24px;
     height: 18px;
-    background: #e2e8f0;
-    border: 1px solid #0f172a;
+    background: var(--color-neutral-200, #E2E8F0);
+    border: 1px solid var(--color-neutral-950, #08090C);
     border-radius: 3px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -296,8 +326,7 @@
   }
 
   .is-dragging .fader-thumb {
-    background: #ffffff;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+    background: #FFFFFF;
   }
 
   .thumb-grip-line {
@@ -306,7 +335,6 @@
     border-radius: 1px;
   }
 
-  /* Meter Bar */
   .fader-meter {
     display: flex;
     flex-direction: column;
@@ -320,8 +348,8 @@
     position: relative;
     width: 7px;
     flex: 1;
-    background: var(--color-neutral-950, #07090d);
-    border: 1px solid var(--color-border-subtle, #1c2230);
+    background: var(--color-neutral-950, #08090C);
+    border: 1px solid var(--color-border-subtle, #1C2029);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -333,10 +361,10 @@
     right: 0;
     background: linear-gradient(
       to top,
-      #10b981 0%,
-      #10b981 70%,
-      #f59e0b 88%,
-      #ef4444 100%
+      #00E599 0%,
+      #00E599 70%,
+      #F59E0B 88%,
+      #EF4444 100%
     );
     border-radius: 1px;
     transition: height 50ms linear;
@@ -347,8 +375,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #ffffff;
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.9);
+    background: #F8FAFC;
     z-index: 2;
   }
 
@@ -356,16 +383,14 @@
     width: 6px;
     height: 4px;
     border-radius: 1px;
-    background: #331515;
+    background: #231416;
     transition: background 60ms ease-out;
   }
 
   .clip-indicator.clipped {
-    background: #ef4444;
-    box-shadow: 0 0 6px #ef4444;
+    background: #EF4444;
   }
 
-  /* Readout Display */
   .readout-block {
     display: flex;
     flex-direction: column;
@@ -379,7 +404,7 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: var(--color-neutral-100, #f1f5f9);
+    color: var(--color-neutral-100, #F1F5F9);
     letter-spacing: -0.02em;
   }
 
@@ -387,7 +412,7 @@
     font-size: 0.65rem;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    color: var(--color-neutral-500, #64748b);
+    color: var(--color-neutral-500, #64748B);
   }
 
   .disabled {

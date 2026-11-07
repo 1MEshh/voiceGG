@@ -28,7 +28,10 @@
 
   // Calculate dB gain contribution of a band at frequency f using RBJ peaking formula
   function evalBand(band: EqBand, f: number): number {
-    if (!band.enabled || band.gain_db === 0) return 0;
+    if (!band.enabled) return 0;
+    if (band.gain_db === 0 && band.filter_type !== 'notch' && band.filter_type !== 'high_pass' && band.filter_type !== 'low_pass') {
+      return 0;
+    }
     const f0 = band.freq_hz;
     const gain = band.gain_db;
     const q = Math.max(0.2, band.q);
@@ -41,6 +44,16 @@
       if (f >= f0) return gain;
       const ratio = f0 / f;
       return gain / (1 + Math.pow(ratio, 2 * q));
+    } else if (band.filter_type === 'notch') {
+      const w = Math.log2(f / f0);
+      const factor = Math.exp(-0.5 * Math.pow(w / (0.5 / q), 2));
+      return -24 * factor;
+    } else if (band.filter_type === 'high_pass') {
+      if (f < f0) return -24 * Math.log2(f0 / Math.max(1, f));
+      return 0;
+    } else if (band.filter_type === 'low_pass') {
+      if (f > f0) return -24 * Math.log2(f / Math.max(1, f0));
+      return 0;
     } else {
       // Peaking / parametric
       const w = Math.log2(f / f0);
@@ -76,12 +89,31 @@
       if (eqConfig.bass_db && freq < 250) {
         totalGainDb += eqConfig.bass_db * (1 - freq / 250);
       }
+      if (eqConfig.voice_db && freq >= 300 && freq <= 3000) {
+        const w = Math.log2(freq / 1200);
+        totalGainDb += eqConfig.voice_db * Math.exp(-0.5 * Math.pow(w / 1.0, 2));
+      }
       if (eqConfig.treble_db && freq > 4000) {
         totalGainDb += eqConfig.treble_db * ((freq - 4000) / 16000);
       }
 
       const y = Math.max(2, Math.min(HEIGHT - 2, MID_Y - totalGainDb * PIXELS_PER_DB));
       points.push([x, y]);
+    }
+
+    let maxGainDev = 0;
+    for (const [, y] of points) {
+      const dev = Math.abs(y - MID_Y);
+      if (dev > maxGainDev) maxGainDev = dev;
+    }
+
+    const isFlat = maxGainDev < 1.0;
+    if (isFlat) {
+      return {
+        line: `M 0,${MID_Y} L ${WIDTH},${MID_Y}`,
+        area: `M 0,${MID_Y} L ${WIDTH},${MID_Y} L ${WIDTH},${MID_Y} L 0,${MID_Y} Z`,
+        isFlat: true,
+      };
     }
 
     // Build smooth SVG path

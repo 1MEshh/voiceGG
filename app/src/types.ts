@@ -42,6 +42,7 @@ export interface EqConfig {
   bass_db: number;
   voice_db: number;
   treble_db: number;
+  input_gain_db?: number;
 }
 
 export interface NoiseCancellerConfig {
@@ -120,6 +121,7 @@ export interface VoiceggConfig {
   chatmix: number;
   routing_rules: AppRouteRule[];
   app_volumes?: Record<string, number>;
+  app_muted?: Record<string, boolean>;
   auto_game_detection: boolean;
   preferred_output_device?: string | null;
   preferred_input_device?: string | null;

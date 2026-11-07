@@ -14,20 +14,21 @@
 
   let trackEl: HTMLElement | null = null;
   let isDragging = false;
+  let localValue = value;
+
+  $: if (!isDragging) {
+    localValue = value;
+  }
 
   $: range = max - min;
-  $: normalizedPos = range > 0 ? Math.max(0, Math.min(1, (value - min) / range)) : 0;
+  $: normalizedPos = range > 0 ? Math.max(0, Math.min(1, (localValue - min) / range)) : 0;
   $: thumbPercent = normalizedPos * 100;
 
   // Center detent fill calculations
   $: centerNorm = range > 0 ? (0 - min) / range : 0.5;
   $: centerPercent = centerNorm * 100;
-  $: fillLeft = centerDetent
-    ? Math.min(centerPercent, thumbPercent)
-    : 0;
-  $: fillWidth = centerDetent
-    ? Math.abs(thumbPercent - centerPercent)
-    : thumbPercent;
+  $: fillLeft = centerDetent ? Math.min(centerPercent, thumbPercent) : 0;
+  $: fillWidth = centerDetent ? Math.abs(thumbPercent - centerPercent) : thumbPercent;
 
   function updateFromClientX(clientX: number) {
     if (!trackEl || disabled) return;
@@ -48,16 +49,17 @@
 
     rawVal = Math.max(min, Math.min(max, rawVal));
 
-    if (rawVal !== value) {
+    if (rawVal !== localValue) {
+      localValue = rawVal;
       value = rawVal;
-      if (onChange) onChange(value);
+      if (onChange) onChange(rawVal);
     }
   }
 
   function handlePointerDown(e: PointerEvent) {
     if (disabled || e.button !== 0) return;
     isDragging = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     updateFromClientX(e.clientX);
   }
 
@@ -70,7 +72,7 @@
     if (!isDragging) return;
     isDragging = false;
     try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       // Ignored
     }
@@ -78,8 +80,9 @@
 
   function handleDoubleClick() {
     if (disabled) return;
+    localValue = defaultValue;
     value = defaultValue;
-    if (onChange) onChange(value);
+    if (onChange) onChange(defaultValue);
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -88,29 +91,32 @@
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') delta = e.shiftKey ? step * 5 : step;
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') delta = e.shiftKey ? -step * 5 : -step;
     else if (e.key === 'Home') {
+      localValue = min;
       value = min;
-      if (onChange) onChange(value);
+      if (onChange) onChange(min);
       return;
     } else if (e.key === 'End') {
+      localValue = max;
       value = max;
-      if (onChange) onChange(value);
+      if (onChange) onChange(max);
       return;
     }
 
     if (delta !== 0) {
       e.preventDefault();
-      const newVal = Math.max(min, Math.min(max, value + delta));
-      if (newVal !== value) {
+      const newVal = Math.max(min, Math.min(max, localValue + delta));
+      if (newVal !== localValue) {
+        localValue = newVal;
         value = newVal;
-        if (onChange) onChange(value);
+        if (onChange) onChange(newVal);
       }
     }
   }
 
   function formatValue(v: number): string {
-    let str = (step < 1 ? v.toFixed(1) : v.toString());
-    if (unit === 'dB' && v > 0) str = '+' + str;
-    return unit ? `${str} ${unit}` : str;
+    let str = step < 1 ? v.toFixed(1) : v.toString();
+    if (unit.trim() === 'dB' && v > 0) str = '+' + str;
+    return unit ? `${str} ${unit.trim()}` : str;
   }
 </script>
 
@@ -121,7 +127,7 @@
         {#if $$slots.label}<slot name="label" />{:else}{label}{/if}
       </span>
       <span class="slider-value" style="color: {accentColor};">
-        {formatValue(value)}
+        {formatValue(localValue)}
       </span>
     </div>
   {/if}
@@ -141,28 +147,21 @@
     aria-label={label || 'Slider'}
     aria-valuemin={min}
     aria-valuemax={max}
-    aria-valuenow={value}
-    aria-valuetext={formatValue(value)}
+    aria-valuenow={localValue}
+    aria-valuetext={formatValue(localValue)}
   >
-    <!-- Background Rail Slot -->
     <div class="rail-slot">
-      <!-- Active Fill Track -->
       <div
         class="rail-fill"
         style="left: {fillLeft}%; width: {fillWidth}%; background-color: {accentColor};"
       ></div>
 
-      <!-- Center Detent Notch Marker -->
       {#if centerDetent}
         <div class="center-detent-marker" style="left: {centerPercent}%;"></div>
       {/if}
     </div>
 
-    <!-- Tactile Thumb -->
-    <div
-      class="slider-thumb"
-      style="left: {thumbPercent}%;"
-    >
+    <div class="slider-thumb" style="left: {thumbPercent}%;">
       <div class="thumb-groove" style="background-color: {accentColor};"></div>
     </div>
   </div>
@@ -182,19 +181,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.775rem;
+    font-size: 0.75rem;
   }
 
   .slider-label {
-    color: var(--color-neutral-300, #cbd5e1);
-    font-weight: 500;
+    color: var(--color-neutral-300, #CBD5E1);
+    font-weight: 600;
   }
 
   .slider-value {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.725rem;
+    font-weight: 700;
   }
 
   .slider-track-rail {
@@ -209,7 +208,7 @@
   }
 
   .slider-track-rail:focus-visible .slider-thumb {
-    outline: 2px solid var(--color-accent-brand, #ff5200);
+    outline: 2px solid var(--color-accent-brand, #FF5200);
     outline-offset: 2px;
   }
 
@@ -217,8 +216,8 @@
     position: relative;
     width: 100%;
     height: 4px;
-    background: var(--color-neutral-950, #07090d);
-    border: 1px solid var(--color-border-default, #1f2637);
+    background: var(--color-neutral-950, #08090C);
+    border: 1px solid var(--color-border-default, #232834);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -237,7 +236,7 @@
     bottom: 0;
     width: 2px;
     transform: translateX(-50%);
-    background: var(--color-neutral-400, #94a3b8);
+    background: var(--color-neutral-400, #94A3B8);
     z-index: 1;
   }
 
@@ -247,22 +246,19 @@
     transform: translate(-50%, -50%);
     width: 14px;
     height: 18px;
-    background: #e2e8f0;
-    border: 1px solid #0f172a;
+    background: var(--color-neutral-200, #E2E8F0);
+    border: 1px solid var(--color-neutral-950, #08090C);
     border-radius: 3px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: none;
     z-index: 2;
-    transition: transform var(--transition-fast, 120ms);
   }
 
   .is-dragging .slider-thumb {
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-    transform: translate(-50%, -50%) scale(1.08);
+    background: #FFFFFF;
   }
 
   .thumb-groove {
@@ -271,7 +267,6 @@
     border-radius: 1px;
   }
 
-  /* Sizes */
   .sm .slider-track-rail {
     height: 16px;
   }

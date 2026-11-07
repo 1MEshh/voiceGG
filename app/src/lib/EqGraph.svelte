@@ -1,17 +1,65 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import type { EqConfig, EqBand, FilterType, ChannelMeter } from '../types';
   import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
 
   export let eqConfig: EqConfig;
   export let meter: ChannelMeter | undefined = undefined;
-  export let accentColor: string = '#22c55e';
+  export let accentColor: string = '#00E599';
   export let onChange: (config: EqConfig) => void;
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
-  let selectedBandIndex: number | null = null;
+  let selectedBandIndex: number = 0;
   let isDragging = false;
+
+  // Local working copy for zero-snap 60fps pointer dragging
+  let localEq: EqConfig = cloneEq(eqConfig);
+  let lastSyncedJson = JSON.stringify(eqConfig);
+  let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastEmitAt = 0;
+
+  function cloneEq(cfg: EqConfig): EqConfig {
+    return {
+      enabled: cfg?.enabled ?? true,
+      bass_db: cfg?.bass_db ?? 0,
+      voice_db: cfg?.voice_db ?? 0,
+      treble_db: cfg?.treble_db ?? 0,
+      bands: (cfg?.bands || []).map((b) => ({ ...b })),
+    };
+  }
+
+  $: {
+    const incomingJson = JSON.stringify(eqConfig);
+    if (!isDragging && incomingJson !== lastSyncedJson) {
+      localEq = cloneEq(eqConfig);
+      lastSyncedJson = incomingJson;
+      if (selectedBandIndex >= localEq.bands.length) {
+        selectedBandIndex = 0;
+      }
+      draw();
+    }
+  }
+
+  function emitChange(immediate = false) {
+    lastSyncedJson = JSON.stringify(localEq);
+    const now = Date.now();
+    if (immediate || now - lastEmitAt >= 40) {
+      if (throttleTimer) {
+        clearTimeout(throttleTimer);
+        throttleTimer = null;
+      }
+      lastEmitAt = now;
+      onChange(cloneEq(localEq));
+    } else if (!throttleTimer) {
+      const remaining = 40 - (now - lastEmitAt);
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        lastEmitAt = Date.now();
+        onChange(cloneEq(localEq));
+      }, remaining);
+    }
+  }
 
   const MIN_FREQ = 20;
   const MAX_FREQ = 20000;
@@ -21,7 +69,7 @@
   function freqToX(freq: number, width: number): number {
     const logMin = Math.log10(MIN_FREQ);
     const logMax = Math.log10(MAX_FREQ);
-    return ((Math.log10(freq) - logMin) / (logMax - logMin)) * width;
+    return ((Math.log10(Math.max(MIN_FREQ, Math.min(MAX_FREQ, freq))) - logMin) / (logMax - logMin)) * width;
   }
 
   function xToFreq(x: number, width: number): number {
@@ -33,17 +81,18 @@
 
   function gainToY(gain: number, height: number): number {
     const clamped = Math.max(MIN_GAIN, Math.min(MAX_GAIN, gain));
-    return height / 2 - (clamped / MAX_GAIN) * (height / 2 * 0.85);
+    return height / 2 - (clamped / MAX_GAIN) * ((height / 2) * 0.82);
   }
 
   function yToGain(y: number, height: number): number {
-    const norm = (height / 2 - y) / (height / 2 * 0.85);
+    const norm = (height / 2 - y) / ((height / 2) * 0.82);
     return Math.max(MIN_GAIN, Math.min(MAX_GAIN, norm * MAX_GAIN));
   }
 
   // Computes exact magnitude response in dB for an RBJ biquad filter at frequency f
   function computeBiquadGainDb(band: EqBand, f: number, fs: number = 48000): number {
-    if (!band.enabled || (band.gain_db === 0 && band.filter_type !== 'low_pass' && band.filter_type !== 'high_pass')) {
+    if (!band.enabled) return 0;
+    if (band.gain_db === 0 && band.filter_type !== 'low_pass' && band.filter_type !== 'high_pass' && band.filter_type !== 'notch') {
       return 0;
     }
     const f0 = Math.max(10, Math.min(fs * 0.49, band.freq_hz));
@@ -86,6 +135,15 @@
         a0 = (A + 1) - (A - 1) * cosW0 + twoSqrtAAlpha;
         a1 = 2 * ((A - 1) - (A + 1) * cosW0);
         a2 = (A + 1) - (A - 1) * cosW0 - twoSqrtAAlpha;
+        break;
+      }
+      case 'notch': {
+        b0 = 1;
+        b1 = -2 * cosW0;
+        b2 = 1;
+        a0 = 1 + alpha;
+        a1 = -2 * cosW0;
+        a2 = 1 - alpha;
         break;
       }
       case 'high_pass': {
@@ -134,40 +192,52 @@
     return 10 * Math.log10(Math.max(1e-12, numMagSq / denMagSq));
   }
 
-  // Calculates combined frequency response across all bands and macro tones at frequency f
+  function getMacroGainAt(f: number): number {
+    let macro = 0;
+    if (localEq.bass_db) {
+      macro += computeBiquadGainDb(
+        { freq_hz: 120, gain_db: localEq.bass_db, q: 0.707, filter_type: 'low_shelf', enabled: true },
+        f
+      );
+    }
+    if (localEq.voice_db) {
+      macro += computeBiquadGainDb(
+        { freq_hz: 1200, gain_db: localEq.voice_db, q: 1.0, filter_type: 'peak', enabled: true },
+        f
+      );
+    }
+    if (localEq.treble_db) {
+      macro += computeBiquadGainDb(
+        { freq_hz: 6000, gain_db: localEq.treble_db, q: 0.707, filter_type: 'high_shelf', enabled: true },
+        f
+      );
+    }
+    return macro;
+  }
+
   function calculateTotalGain(f: number): number {
+    if (!localEq.enabled) return 0;
     let total = 0;
-    for (const band of eqConfig.bands) {
+    for (const band of localEq.bands) {
       total += computeBiquadGainDb(band, f);
     }
-
-    // Macro tone shelf and peak biquads (matching voicegg-dsp ParametricEq)
-    if (eqConfig.bass_db) {
-      total += computeBiquadGainDb(
-        { freq_hz: 120, gain_db: eqConfig.bass_db, q: 0.707, filter_type: 'low_shelf', enabled: true },
-        f
-      );
-    }
-    if (eqConfig.voice_db) {
-      total += computeBiquadGainDb(
-        { freq_hz: 1200, gain_db: eqConfig.voice_db, q: 1.0, filter_type: 'peak', enabled: true },
-        f
-      );
-    }
-    if (eqConfig.treble_db) {
-      total += computeBiquadGainDb(
-        { freq_hz: 6000, gain_db: eqConfig.treble_db, q: 0.707, filter_type: 'high_shelf', enabled: true },
-        f
-      );
-    }
-
+    total += getMacroGainAt(f);
     return total;
+  }
+
+  function getBandNodeY(band: EqBand, height: number): number {
+    if (!localEq.enabled) {
+      return gainToY(0, height);
+    }
+    const effectiveGain = calculateTotalGain(band.freq_hz);
+    return gainToY(effectiveGain, height);
   }
 
   export function draw() {
     if (!canvas) return;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
+    if (width <= 0 || height <= 0) return;
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = width * dpr;
@@ -176,21 +246,21 @@
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
-    // 1. Clear background
-    ctx.fillStyle = '#11151F';
+    // 1. Matte Studio Background
+    ctx.fillStyle = '#08090C';
     ctx.fillRect(0, 0, width, height);
 
     // 2. Frequency range regions
     const regions = [
-      { name: 'SUB BASS', start: 20, end: 60, col: 'rgba(255, 255, 255, 0.012)' },
-      { name: 'BASS', start: 60, end: 250, col: 'rgba(255, 255, 255, 0.022)' },
-      { name: 'LOW MIDS', start: 250, end: 500, col: 'rgba(255, 255, 255, 0.012)' },
-      { name: 'MID RANGE', start: 500, end: 2000, col: 'rgba(255, 255, 255, 0.022)' },
-      { name: 'UPPER MIDS', start: 2000, end: 6000, col: 'rgba(255, 255, 255, 0.012)' },
-      { name: 'HIGHS', start: 6000, end: 20000, col: 'rgba(255, 255, 255, 0.022)' },
+      { name: 'SUB BASS', start: 20, end: 60, col: 'rgba(255, 255, 255, 0.008)' },
+      { name: 'BASS', start: 60, end: 250, col: 'rgba(255, 255, 255, 0.016)' },
+      { name: 'LOW MIDS', start: 250, end: 500, col: 'rgba(255, 255, 255, 0.008)' },
+      { name: 'MID RANGE', start: 500, end: 2000, col: 'rgba(255, 255, 255, 0.016)' },
+      { name: 'UPPER MIDS', start: 2000, end: 6000, col: 'rgba(255, 255, 255, 0.008)' },
+      { name: 'HIGHS', start: 6000, end: 20000, col: 'rgba(255, 255, 255, 0.016)' },
     ];
 
-    ctx.font = '10px "IBM Plex Sans Arabic", "Inter", sans-serif';
+    ctx.font = '700 9px "Inter", system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (const r of regions) {
       const x1 = freqToX(r.start, width);
@@ -199,12 +269,11 @@
       ctx.fillRect(x1, 0, x2 - x1, height);
 
       ctx.fillStyle = '#64748B';
-      ctx.fillText(r.name, (x1 + x2) / 2, 16);
+      ctx.fillText(r.name, (x1 + x2) / 2, 14);
     }
 
     // 3. Grid lines (dB lines)
     ctx.lineWidth = 1;
-    ctx.strokeStyle = '#1F2637';
     ctx.fillStyle = '#64748B';
     ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textAlign = 'right';
@@ -212,7 +281,7 @@
     for (const db of [-12, -6, 0, 6, 12]) {
       const y = gainToY(db, height);
       ctx.beginPath();
-      ctx.strokeStyle = db === 0 ? '#2A344A' : '#1F2637';
+      ctx.strokeStyle = db === 0 ? '#2F3646' : '#1C2029';
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
@@ -227,8 +296,8 @@
     for (const f of freqs) {
       const x = freqToX(f, width);
       ctx.beginPath();
-      ctx.strokeStyle = '#1F2637';
-      ctx.moveTo(x, 24);
+      ctx.strokeStyle = '#1C2029';
+      ctx.moveTo(x, 22);
       ctx.lineTo(x, height);
       ctx.stroke();
 
@@ -244,14 +313,14 @@
       for (let i = 0; i < numBars; i++) {
         const barX = i * barWidth;
         const centerWeight = Math.sin((i / numBars) * Math.PI);
-        const barHeight = Math.max(3, signalNorm * (height * 0.5) * (0.35 + 0.65 * centerWeight));
+        const barHeight = Math.max(3, signalNorm * (height * 0.48) * (0.35 + 0.65 * centerWeight));
         const barY = height - barHeight;
 
-        ctx.fillStyle = `${accentColor}18`;
+        ctx.fillStyle = `${accentColor}14`;
         ctx.fillRect(barX + 1, barY, barWidth - 2, barHeight);
 
-        ctx.fillStyle = `${accentColor}40`;
-        ctx.fillRect(barX + 1, barY, barWidth - 2, 2);
+        ctx.fillStyle = `${accentColor}38`;
+        ctx.fillRect(barX + 1, barY, barWidth - 2, 1.5);
       }
     }
 
@@ -271,94 +340,108 @@
       }
     }
 
-    // Fill under curve
-    ctx.strokeStyle = accentColor;
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = localEq.enabled ? accentColor : '#64748B';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.lineTo(width, height / 2);
     ctx.lineTo(0, height / 2);
     ctx.closePath();
     const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, `${accentColor}33`);
-    grad.addColorStop(1, `${accentColor}05`);
+    grad.addColorStop(0, localEq.enabled ? `${accentColor}28` : 'rgba(100,116,139,0.12)');
+    grad.addColorStop(1, `${accentColor}03`);
     ctx.fillStyle = grad;
     ctx.fill();
 
     // 5. Draw 10 draggable band nodes
-    eqConfig.bands.forEach((band, index) => {
-      if (!band.enabled) return;
+    localEq.bands.forEach((band, index) => {
       const x = freqToX(band.freq_hz, width);
-      const y = gainToY(band.gain_db, height);
+      const y = getBandNodeY(band, height);
       const isSelected = selectedBandIndex === index;
 
-      // Glow ring if selected
       if (isSelected) {
         ctx!.beginPath();
-        ctx!.arc(x, y, 12, 0, Math.PI * 2);
-        ctx!.fillStyle = `${accentColor}44`;
-        ctx!.fill();
+        ctx!.arc(x, y, 11, 0, Math.PI * 2);
+        ctx!.strokeStyle = accentColor;
+        ctx!.lineWidth = 1.5;
+        ctx!.stroke();
       }
 
       ctx!.beginPath();
       ctx!.arc(x, y, 7, 0, Math.PI * 2);
-      ctx!.fillStyle = isSelected ? '#ffffff' : accentColor;
+      ctx!.fillStyle = !band.enabled ? '#262C38' : isSelected ? '#F8FAFC' : accentColor;
       ctx!.fill();
-      ctx!.strokeStyle = '#0f172a';
-      ctx!.lineWidth = 2;
+      ctx!.strokeStyle = '#08090C';
+      ctx!.lineWidth = 1.5;
       ctx!.stroke();
 
-      // Band number inside/beside
-      ctx!.fillStyle = '#ffffff';
-      ctx!.font = '9px sans-serif';
+      ctx!.fillStyle = isSelected && band.enabled ? '#08090C' : '#F8FAFC';
+      ctx!.font = '800 8.5px "JetBrains Mono", monospace';
       ctx!.textAlign = 'center';
       ctx!.fillText(`${index + 1}`, x, y + 3);
     });
   }
 
-  function handleMouseDown(e: MouseEvent) {
-    if (!canvas) return;
+  function handlePointerDown(e: PointerEvent) {
+    if (!canvas || e.button !== 0) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Hit test bands
     let found = -1;
-    for (let i = 0; i < eqConfig.bands.length; i++) {
-      const bx = freqToX(eqConfig.bands[i].freq_hz, canvas.clientWidth);
-      const by = gainToY(eqConfig.bands[i].gain_db, canvas.clientHeight);
+    let minDistance = 16;
+    for (let i = 0; i < localEq.bands.length; i++) {
+      const bx = freqToX(localEq.bands[i].freq_hz, canvas.clientWidth);
+      const by = getBandNodeY(localEq.bands[i], canvas.clientHeight);
       const dist = Math.hypot(x - bx, y - by);
-      if (dist <= 14) {
+      if (dist <= minDistance) {
+        minDistance = dist;
         found = i;
-        break;
       }
     }
 
     if (found !== -1) {
       selectedBandIndex = found;
       isDragging = true;
+      canvas.setPointerCapture(e.pointerId);
       draw();
     }
   }
 
-  function handleMouseMove(e: MouseEvent) {
+  function handlePointerMove(e: PointerEvent) {
     if (!isDragging || selectedBandIndex === null || !canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     const newFreq = Math.round(xToFreq(x, canvas.clientWidth));
-    const newGain = Math.round(yToGain(y, canvas.clientHeight) * 10) / 10;
+    const targetGain = yToGain(y, canvas.clientHeight);
+    const macro = getMacroGainAt(newFreq);
+    const filter = localEq.bands[selectedBandIndex].filter_type;
+    const isGainLocked = filter === 'high_pass' || filter === 'low_pass';
 
-    eqConfig.bands[selectedBandIndex].freq_hz = Math.max(MIN_FREQ, Math.min(MAX_FREQ, newFreq));
-    eqConfig.bands[selectedBandIndex].gain_db = Math.max(MIN_GAIN, Math.min(MAX_GAIN, newGain));
+    localEq.bands[selectedBandIndex].freq_hz = Math.max(MIN_FREQ, Math.min(MAX_FREQ, newFreq));
+    if (!isGainLocked) {
+      const newGain = Math.round((targetGain - macro) * 10) / 10;
+      localEq.bands[selectedBandIndex].gain_db = Math.max(MIN_GAIN, Math.min(MAX_GAIN, newGain));
+    } else {
+      localEq.bands[selectedBandIndex].gain_db = 0;
+    }
+    localEq.bands = [...localEq.bands];
 
     draw();
-    onChange(eqConfig);
+    emitChange(false);
   }
 
-  function handleMouseUp() {
+  function handlePointerUp(e: PointerEvent) {
+    if (!isDragging) return;
     isDragging = false;
+    try {
+      canvas?.releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+    emitChange(true);
   }
 
   function handleDoubleClick(e: MouseEvent) {
@@ -367,14 +450,15 @@
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    for (let i = 0; i < eqConfig.bands.length; i++) {
-      const bx = freqToX(eqConfig.bands[i].freq_hz, canvas.clientWidth);
-      const by = gainToY(eqConfig.bands[i].gain_db, canvas.clientHeight);
-      if (Math.hypot(x - bx, y - by) <= 14) {
-        eqConfig.bands[i].gain_db = 0.0;
+    for (let i = 0; i < localEq.bands.length; i++) {
+      const bx = freqToX(localEq.bands[i].freq_hz, canvas.clientWidth);
+      const by = getBandNodeY(localEq.bands[i], canvas.clientHeight);
+      if (Math.hypot(x - bx, y - by) <= 16) {
+        localEq.bands[i].gain_db = 0.0;
+        localEq.bands = [...localEq.bands];
         selectedBandIndex = i;
         draw();
-        onChange(eqConfig);
+        emitChange(true);
         break;
       }
     }
@@ -386,21 +470,20 @@
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check if mouse is over any band node or currently selected band
     let targetIndex = -1;
-    for (let i = 0; i < eqConfig.bands.length; i++) {
-      const bx = freqToX(eqConfig.bands[i].freq_hz, canvas.clientWidth);
-      const by = gainToY(eqConfig.bands[i].gain_db, canvas.clientHeight);
-      if (Math.hypot(x - bx, y - by) <= 16) {
+    for (let i = 0; i < localEq.bands.length; i++) {
+      const bx = freqToX(localEq.bands[i].freq_hz, canvas.clientWidth);
+      const by = getBandNodeY(localEq.bands[i], canvas.clientHeight);
+      if (Math.hypot(x - bx, y - by) <= 18) {
         targetIndex = i;
         break;
       }
     }
 
     if (targetIndex === -1 && selectedBandIndex !== null) {
-      const bx = freqToX(eqConfig.bands[selectedBandIndex].freq_hz, canvas.clientWidth);
-      const by = gainToY(eqConfig.bands[selectedBandIndex].gain_db, canvas.clientHeight);
-      if (Math.hypot(x - bx, y - by) <= 24) {
+      const bx = freqToX(localEq.bands[selectedBandIndex].freq_hz, canvas.clientWidth);
+      const by = getBandNodeY(localEq.bands[selectedBandIndex], canvas.clientHeight);
+      if (Math.hypot(x - bx, y - by) <= 28) {
         targetIndex = selectedBandIndex;
       }
     }
@@ -408,38 +491,79 @@
     if (targetIndex !== -1) {
       e.preventDefault();
       selectedBandIndex = targetIndex;
-      // Wheel up (e.deltaY < 0) increases Q (narrower bandwidth), wheel down decreases Q (0.2 to 10.0)
       const delta = e.deltaY < 0 ? 0.2 : -0.2;
-      const currentQ = eqConfig.bands[targetIndex].q ?? 1.0;
-      const newQ = Math.round(Math.max(0.2, Math.min(10.0, currentQ + delta)) * 10) / 10;
-      eqConfig.bands[targetIndex].q = newQ;
+      const currentQ = localEq.bands[targetIndex].q ?? 1.0;
+      const newQ = Math.round(Math.max(0.1, Math.min(10.0, currentQ + delta)) * 10) / 10;
+      localEq.bands[targetIndex].q = newQ;
+      localEq.bands = [...localEq.bands];
       draw();
-      onChange(eqConfig);
+      emitChange(false);
     }
   }
 
   const filterTypeOptions: SelectOption[] = [
-    { value: 'peak', label: 'Peak' },
+    { value: 'peak', label: 'Peaking EQ' },
     { value: 'low_shelf', label: 'Low Shelf' },
     { value: 'high_shelf', label: 'High Shelf' },
     { value: 'high_pass', label: 'High Pass' },
     { value: 'low_pass', label: 'Low Pass' },
+    { value: 'notch', label: 'Notch Filter' },
   ];
 
-  function handleFilterTypeChange(index: number, type: FilterType) {
-    if (index >= 0 && index < eqConfig.bands.length) {
-      eqConfig.bands[index].filter_type = type;
-      draw();
-      onChange(eqConfig);
-    }
+  function updateSelectedBand(patch: Partial<EqBand>, immediate = true) {
+    if (!localEq.bands[selectedBandIndex]) return;
+    localEq.bands[selectedBandIndex] = {
+      ...localEq.bands[selectedBandIndex],
+      ...patch,
+    };
+    localEq.bands = [...localEq.bands];
+    draw();
+    emitChange(immediate);
   }
 
-  function toggleBandEnabled(index: number) {
-    if (index >= 0 && index < eqConfig.bands.length) {
-      eqConfig.bands[index].enabled = !eqConfig.bands[index].enabled;
-      draw();
-      onChange(eqConfig);
+  function handleFilterTypeChange(val: string) {
+    const ft = val as FilterType;
+    const patch: Partial<EqBand> = { filter_type: ft };
+    if (ft === 'high_pass' || ft === 'low_pass') {
+      patch.gain_db = 0;
     }
+    updateSelectedBand(patch, true);
+  }
+
+  function handleFreqChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const raw = parseFloat(input.value);
+    if (isNaN(raw)) {
+      input.value = String(Math.round(activeBand.freq_hz));
+      return;
+    }
+    const clamped = Math.max(MIN_FREQ, Math.min(MAX_FREQ, Math.round(raw)));
+    input.value = String(clamped);
+    updateSelectedBand({ freq_hz: clamped }, true);
+  }
+
+  function handleGainChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const raw = parseFloat(input.value);
+    if (isNaN(raw)) {
+      input.value = String(activeBand.gain_db);
+      return;
+    }
+    const clamped = Math.max(MIN_GAIN, Math.min(MAX_GAIN, Math.round(raw * 10) / 10));
+    input.value = String(clamped);
+    updateSelectedBand({ gain_db: clamped }, true);
+  }
+
+  function handleQChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const raw = parseFloat(input.value);
+    if (isNaN(raw)) {
+      input.value = String(activeBand.q);
+      return;
+    }
+    const clamped = Math.max(0.1, Math.min(10, Math.round(raw * 10) / 10));
+    input.value = String(clamped);
+    updateSelectedBand({ q: clamped }, true);
   }
 
   onMount(() => {
@@ -448,133 +572,130 @@
     return () => window.removeEventListener('resize', draw);
   });
 
-  $: if (eqConfig || accentColor || meter) {
+  onDestroy(() => {
+    if (throttleTimer) clearTimeout(throttleTimer);
+  });
+
+  $: if (accentColor || meter) {
     draw();
   }
+
+  $: activeBand = localEq.bands[selectedBandIndex] || localEq.bands[0];
+  $: isGainLocked = activeBand ? (activeBand.filter_type === 'high_pass' || activeBand.filter_type === 'low_pass') : false;
 </script>
 
 <div class="eq-component-wrapper">
+  <!-- SteelSeries GG Sonar Compact Single-Band Inline Inspector Bar -->
+  {#if activeBand}
+    <div class="sonar-band-bar">
+      <div class="band-selector-pills" role="tablist" aria-label="EQ Band Selector">
+        <span class="bar-section-label">BAND</span>
+        {#each localEq.bands as band, i}
+          <button
+            type="button"
+            class="band-num-pill tabular-nums"
+            class:selected={selectedBandIndex === i}
+            class:disabled-band={!band.enabled}
+            style="--eq-accent: {accentColor};"
+            on:click={() => {
+              selectedBandIndex = i;
+              draw();
+            }}
+            title="Band {i + 1}: {band.freq_hz} Hz ({band.gain_db >= 0 ? '+' : ''}{band.gain_db} dB)"
+          >
+            {i + 1}
+          </button>
+        {/each}
+      </div>
+
+      <div class="band-inline-controls">
+        <div class="inline-field filter-field">
+          <span class="field-label">FILTER</span>
+          <div class="filter-select-wrap">
+            <CustomSelect
+              size="sm"
+              value={activeBand.filter_type}
+              options={filterTypeOptions}
+              onChange={handleFilterTypeChange}
+            />
+          </div>
+        </div>
+
+        <div class="inline-field">
+          <span class="field-label">FREQ</span>
+          <div class="num-input-wrap">
+            <input
+              type="number"
+              min="20"
+              max="20000"
+              step="1"
+              class="inline-num-input tabular-nums"
+              value={Math.round(activeBand.freq_hz)}
+              on:change={handleFreqChange}
+              on:keydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+            <span class="unit">Hz</span>
+          </div>
+        </div>
+
+        <div class="inline-field" class:is-disabled-field={isGainLocked}>
+          <span class="field-label">GAIN</span>
+          <div class="num-input-wrap">
+            <input
+              type="number"
+              min="-12"
+              max="12"
+              step="0.5"
+              class="inline-num-input tabular-nums"
+              disabled={isGainLocked}
+              value={isGainLocked ? 0 : activeBand.gain_db}
+              on:change={handleGainChange}
+              on:keydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+            <span class="unit">dB</span>
+          </div>
+        </div>
+
+        <div class="inline-field">
+          <span class="field-label">Q FACTOR</span>
+          <div class="num-input-wrap q-wrap">
+            <input
+              type="number"
+              min="0.1"
+              max="10"
+              step="0.1"
+              class="inline-num-input tabular-nums"
+              value={activeBand.q}
+              on:change={handleQChange}
+              on:keydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="band-state-btn"
+          class:active={activeBand.enabled}
+          style="--eq-accent: {accentColor};"
+          on:click={() => updateSelectedBand({ enabled: !activeBand.enabled }, true)}
+          title={activeBand.enabled ? 'Disable Band' : 'Enable Band'}
+        >
+          {activeBand.enabled ? 'ACTIVE' : 'BYPASS'}
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <div class="eq-graph-container">
     <canvas
       bind:this={canvas}
-      on:mousedown={handleMouseDown}
-      on:mousemove={handleMouseMove}
-      on:mouseup={handleMouseUp}
-      on:mouseleave={handleMouseUp}
+      on:pointerdown={handlePointerDown}
+      on:pointermove={handlePointerMove}
+      on:pointerup={handlePointerUp}
+      on:pointercancel={handlePointerUp}
       on:dblclick={handleDoubleClick}
       on:wheel={handleWheel}
     ></canvas>
-
-    {#if selectedBandIndex !== null}
-      {@const b = eqConfig.bands[selectedBandIndex]}
-      <div class="inspector-badge">
-        <span class="badge-title">BAND {selectedBandIndex + 1}</span>
-        <span class="badge-val">{b.freq_hz >= 1000 ? (b.freq_hz / 1000).toFixed(1) + ' kHz' : b.freq_hz + ' Hz'}</span>
-        <span class="badge-val">{b.gain_db > 0 ? '+' : ''}{b.gain_db.toFixed(1)} dB</span>
-        <span class="badge-val">Q: {b.q.toFixed(2)}</span>
-      </div>
-    {/if}
-  </div>
-
-  <!-- 10-Band Parameter Inspector Table -->
-  <div class="eq-table-card">
-    <div class="table-header-title">
-      <span class="table-title">PARAMETRIC EQUALIZER BANDS</span>
-      <span class="table-hint">Double-click node to reset • Mouse wheel adjusts Q</span>
-    </div>
-
-    <div class="table-scroll-container">
-      <table class="eq-bands-table">
-        <thead>
-          <tr>
-            <th class="th-num">#</th>
-            <th class="th-type">TYPE</th>
-            <th class="th-freq">FREQ</th>
-            <th class="th-gain">GAIN</th>
-            <th class="th-q">Q</th>
-            <th class="th-bypass">STATE</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each eqConfig.bands as band, i}
-            <tr
-              class="band-row"
-              class:is-selected={selectedBandIndex === i}
-              class:is-bypassed={!band.enabled}
-              on:click={() => { selectedBandIndex = i; draw(); }}
-            >
-              <td class="col-num">
-                <span
-                  class="num-dot"
-                  style="background-color: {band.enabled ? accentColor : 'var(--color-neutral-500, #64748B)'};"
-                ></span>
-                <span class="num-text">{i + 1}</span>
-              </td>
-              <td class="col-type" on:click|stopPropagation>
-                <CustomSelect
-                  size="sm"
-                  value={band.filter_type}
-                  options={filterTypeOptions}
-                  onChange={(val) => handleFilterTypeChange(i, val as FilterType)}
-                />
-              </td>
-              <td class="col-freq" on:click|stopPropagation>
-                <div class="num-input-wrap">
-                  <input
-                    type="number"
-                    min="20"
-                    max="20000"
-                    step="1"
-                    class="table-num-input"
-                    bind:value={band.freq_hz}
-                    on:input={() => { draw(); onChange(eqConfig); }}
-                  />
-                  <span class="unit">Hz</span>
-                </div>
-              </td>
-              <td class="col-gain" on:click|stopPropagation>
-                <div class="num-input-wrap">
-                  <input
-                    type="number"
-                    min="-12"
-                    max="12"
-                    step="0.5"
-                    class="table-num-input"
-                    bind:value={band.gain_db}
-                    on:input={() => { draw(); onChange(eqConfig); }}
-                  />
-                  <span class="unit">dB</span>
-                </div>
-              </td>
-              <td class="col-q" on:click|stopPropagation>
-                <div class="num-input-wrap">
-                  <input
-                    type="number"
-                    min="0.2"
-                    max="10"
-                    step="0.1"
-                    class="table-num-input"
-                    bind:value={band.q}
-                    on:input={() => { draw(); onChange(eqConfig); }}
-                  />
-                </div>
-              </td>
-              <td class="col-bypass" on:click|stopPropagation>
-                <button
-                  type="button"
-                  class="band-toggle-btn"
-                  class:active={band.enabled}
-                  on:click={() => toggleBandEnabled(i)}
-                  title={band.enabled ? 'Bypass Band' : 'Enable Band'}
-                >
-                  {band.enabled ? 'ACTIVE' : 'BYPASS'}
-                </button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
   </div>
 </div>
 
@@ -582,19 +703,162 @@
   .eq-component-wrapper {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
     font-family: var(--font-sans);
+  }
+
+  .sonar-band-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--color-surface-2, #171B22);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px 12px;
+  }
+
+  .band-selector-pills {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .bar-section-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--color-text-muted, #64748B);
+    letter-spacing: 0.6px;
+    margin-inline-end: 4px;
+  }
+
+  .band-num-pill {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-xs, 3px);
+    background: var(--color-surface-3, #1E232D);
+    border: 1px solid var(--color-border-default, #232834);
+    color: var(--color-text-secondary, #94A3B8);
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+  }
+
+  .band-num-pill:hover {
+    color: var(--color-text-primary, #F8FAFC);
+    border-color: var(--color-border-bright, #2F3646);
+  }
+
+  .band-num-pill.selected {
+    background: var(--eq-accent, #FF5200);
+    border-color: var(--eq-accent, #FF5200);
+    color: #08090C;
+  }
+
+  .band-num-pill.disabled-band {
+    opacity: 0.4;
+  }
+
+  .band-inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .inline-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .inline-field.is-disabled-field {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .field-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--color-text-muted, #64748B);
+    letter-spacing: 0.5px;
+  }
+
+  .filter-select-wrap {
+    width: 122px;
+  }
+
+  .num-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-neutral-950, #08090C);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-xs, 3px);
+    padding: 3px 6px;
+    width: 78px;
+  }
+
+  .num-input-wrap.q-wrap {
+    width: 56px;
+  }
+
+  .num-input-wrap:focus-within {
+    border-color: var(--color-border-bright, #2F3646);
+  }
+
+  .inline-num-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--color-text-primary, #F8FAFC);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    outline: none;
+    padding: 0;
+  }
+
+  .unit {
+    font-size: 9px;
+    color: var(--color-text-muted, #64748B);
+    font-family: var(--font-mono);
+  }
+
+  .band-state-btn {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--radius-xs, 3px);
+    font-size: 9px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    border: 1px solid var(--color-border-default, #232834);
+    background: var(--color-surface-3, #1E232D);
+    color: var(--color-text-muted, #64748B);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .band-state-btn.active {
+    background: rgba(0, 229, 153, 0.12);
+    color: var(--color-channel-game, #00E599);
+    border-color: rgba(0, 229, 153, 0.35);
   }
 
   .eq-graph-container {
     position: relative;
     width: 100%;
     height: 220px;
-    background: var(--color-surface-1, #11151F);
-    border-radius: var(--radius-md, 6px);
+    background: var(--color-neutral-950, #08090C);
+    border-radius: var(--radius-sm, 4px);
     overflow: hidden;
-    border: 1px solid var(--color-border-default, #1F2637);
+    border: 1px solid var(--color-border-default, #232834);
   }
 
   canvas {
@@ -602,180 +866,6 @@
     height: 100%;
     display: block;
     cursor: crosshair;
-  }
-
-  .inspector-badge {
-    position: absolute;
-    bottom: 10px;
-    left: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(17, 21, 31, 0.9);
-    backdrop-filter: blur(6px);
-    border: 1px solid var(--color-border-bright, #2A344A);
-    padding: 4px 10px;
-    border-radius: var(--radius-sm, 4px);
-    font-size: 11px;
-    user-select: none;
-    box-shadow: var(--shadow-depth-sm, 0 1px 2px rgba(0,0,0,0.3));
-  }
-
-  .badge-title {
-    font-weight: 700;
-    color: var(--color-text-secondary, #94A3B8);
-  }
-
-  .badge-val {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--color-text-primary, #F8FAFC);
-  }
-
-  /* Table Card */
-  .eq-table-card {
-    background: var(--color-surface-1, #11151F);
-    border: 1px solid var(--color-border-default, #1F2637);
-    border-radius: var(--radius-md, 6px);
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .table-header-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .table-title {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-neutral-300, #CBD5E1);
-  }
-
-  .table-hint {
-    font-size: 0.7rem;
-    color: var(--color-neutral-500, #64748B);
-  }
-
-  .table-scroll-container {
-    overflow-x: auto;
-    max-height: 220px;
-    overflow-y: auto;
-  }
-
-  .eq-bands-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.775rem;
-  }
-
-  .eq-bands-table th {
-    text-align: left;
-    padding: 6px 8px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: var(--color-neutral-500, #64748B);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 1px solid var(--color-border-default, #1F2637);
-  }
-
-  .eq-bands-table td {
-    padding: 5px 8px;
-    border-bottom: 1px solid var(--color-border-subtle, #1C2230);
-    vertical-align: middle;
-  }
-
-  .band-row {
-    cursor: pointer;
-    transition: background var(--transition-fast, 120ms);
-  }
-
-  .band-row:hover {
-    background: var(--color-surface-hover, #252D40);
-  }
-
-  .band-row.is-selected {
-    background: rgba(255, 82, 0, 0.08);
-  }
-
-  .band-row.is-bypassed {
-    opacity: 0.45;
-  }
-
-  .col-num {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 700;
-    font-family: var(--font-mono);
-  }
-
-  .num-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .col-type {
-    width: 130px;
-  }
-
-  .num-input-wrap {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--color-surface-2, #161B26);
-    border: 1px solid var(--color-border-default, #1F2637);
-    border-radius: var(--radius-sm, 4px);
-    padding: 3px 6px;
-    width: 75px;
-  }
-
-  .table-num-input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: var(--color-text-primary, #F8FAFC);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    outline: none;
-    padding: 0;
-  }
-
-  .unit {
-    font-size: 0.65rem;
-    color: var(--color-neutral-500, #64748B);
-    font-family: var(--font-mono);
-  }
-
-  .band-toggle-btn {
-    padding: 3px 8px;
-    border-radius: var(--radius-sm, 4px);
-    font-size: 0.65rem;
-    font-weight: 700;
-    font-family: var(--font-mono);
-    border: 1px solid var(--color-border-bright, #2A344A);
-    background: var(--color-surface-2, #161B26);
-    color: var(--color-neutral-400, #94A3B8);
-    cursor: pointer;
-    transition: all var(--transition-fast, 120ms);
-  }
-
-  .band-toggle-btn.active {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--color-accent-success, #10B981);
-    border-color: rgba(16, 185, 129, 0.35);
-  }
-
-  .band-toggle-btn:hover {
-    border-color: var(--color-neutral-400, #94A3B8);
+    touch-action: none;
   }
 </style>

@@ -1,17 +1,32 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import type { Preset, AudioDevice, PluginCapabilities, ChannelMeter, ChannelId } from '../types';
   import EqGraph from './EqGraph.svelte';
   import SonarSlider from './SonarSlider.svelte';
   import CustomSelect, { type SelectOption } from './CustomSelect.svelte';
-  import { Waves, Shield, Sliders, Volume2, Mic, Search, Star, Headphones, AlertTriangle, Sparkles, BookmarkPlus } from '@lucide/svelte';
+  import {
+    Waves,
+    Shield,
+    Sliders,
+    Volume2,
+    Mic,
+    Search,
+    Headphones,
+    AlertTriangle,
+    BookmarkPlus,
+    RotateCcw,
+  } from '@lucide/svelte';
   import { t } from './i18n';
 
   export let currentPreset: Preset;
   export let allPresets: Preset[] = [];
-  export let favoritePresets: string[] = [];
+  export let builtinPresets: Preset[] = [];
   export let devices: AudioDevice[] = [];
   export let preferredInputDevice: string | null = null;
   export let onChangePreset: (p: Preset) => void;
+  export let onSelectPreset: ((p: Preset) => void) | undefined = undefined;
+  export let onResetPreset: ((channel: ChannelId, presetId: string) => void) | undefined = undefined;
   export let onOpenBrowser: () => void = () => {};
   export let onSetDevice: (type: 'sink' | 'source', deviceName: string) => void;
   export let micMonitorEnabled: boolean = false;
@@ -19,28 +34,112 @@
   export let capabilities: PluginCapabilities | undefined = undefined;
   export let meter: ChannelMeter | undefined = undefined;
   export let onSetMicMonitor: (enabled: boolean, volume: number) => void;
-  export let onToggleFavorite: ((presetId: string) => void) | undefined = undefined;
   export let onSaveCustomPreset: ((channel: ChannelId, preset: Preset) => void) | undefined = undefined;
+
+  const MIC_ACCENT = '#FF5200';
 
   let isSavingCustom = false;
   let customPresetName = '';
 
-  $: isRnnoiseAvailable = capabilities ? capabilities.rnnoise : true;
+  // Local working copy of the active preset for zero-snap 60fps editing
+  let localPreset: Preset = clonePreset(currentPreset);
+  let lastIncomingPresetId = currentPreset?.id || '';
+  let lastLocalEditAt = 0;
+  let saveThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastSaveAt = 0;
 
-  $: noiseAmount = currentPreset.noise_canceller?.amount ?? 0;
-  $: gateThreshold = currentPreset.noise_gate?.threshold_db ?? -40;
-  $: gateAttack = currentPreset.noise_gate?.attack_ms ?? 10;
-  $: gateRelease = currentPreset.noise_gate?.release_ms ?? 100;
-  $: gateHysteresis = currentPreset.noise_gate?.hysteresis_db ?? 6;
+  function clonePreset(p: Preset): Preset {
+    const copy: Preset = JSON.parse(JSON.stringify(p));
+    if (!copy.eq) {
+      copy.eq = {
+        enabled: true,
+        bands: [],
+        bass_db: 0,
+        voice_db: 0,
+        treble_db: 0,
+        input_gain_db: 0,
+      };
+    }
+    if (copy.eq.input_gain_db === undefined) {
+      copy.eq.input_gain_db = 0;
+    }
+    return copy;
+  }
 
-  $: compThreshold = currentPreset.compressor?.threshold_db ?? -18;
-  $: compRatio = currentPreset.compressor?.ratio ?? 3;
-  $: compMakeup = currentPreset.compressor?.makeup_gain_db ?? 2;
-  $: compKnee = currentPreset.compressor?.knee_db ?? 3;
+  $: if (
+    currentPreset &&
+    (currentPreset.id !== lastIncomingPresetId || Date.now() - lastLocalEditAt > 600)
+  ) {
+    lastIncomingPresetId = currentPreset.id;
+    localPreset = clonePreset(currentPreset);
+  }
+
+  function scheduleSavePreset(immediate = false) {
+    lastLocalEditAt = Date.now();
+    const now = Date.now();
+    if (immediate || now - lastSaveAt >= 40) {
+      if (saveThrottleTimer) {
+        clearTimeout(saveThrottleTimer);
+        saveThrottleTimer = null;
+      }
+      lastSaveAt = now;
+      onChangePreset(clonePreset(localPreset));
+    } else if (!saveThrottleTimer) {
+      const remaining = 40 - (now - lastSaveAt);
+      saveThrottleTimer = setTimeout(() => {
+        saveThrottleTimer = null;
+        lastSaveAt = Date.now();
+        onChangePreset(clonePreset(localPreset));
+      }, remaining);
+    }
+  }
+
+  onDestroy(() => {
+    if (saveThrottleTimer) clearTimeout(saveThrottleTimer);
+  });
+
+  // Built-in Rust nnnoiseless crate is always available, honoring capability flags if provided
+  $: isRnnoiseAvailable = capabilities?.rnnoise ?? true;
+
+  $: factoryPreset = builtinPresets.find((bp) => bp.id === localPreset.id);
+  $: isModified = Boolean(
+    factoryPreset &&
+      (JSON.stringify(localPreset.eq) !== JSON.stringify(factoryPreset.eq) ||
+        JSON.stringify(localPreset.noise_canceller) !== JSON.stringify(factoryPreset.noise_canceller) ||
+        JSON.stringify(localPreset.compressor) !== JSON.stringify(factoryPreset.compressor) ||
+        JSON.stringify(localPreset.noise_gate) !== JSON.stringify(factoryPreset.noise_gate))
+  );
+
+  async function handleResetToFactory() {
+    if (factoryPreset) {
+      localPreset = clonePreset(factoryPreset);
+      lastIncomingPresetId = factoryPreset.id;
+    }
+    if (onResetPreset) {
+      onResetPreset('mic', localPreset.id);
+    } else {
+      try {
+        await invoke('reset_preset', { channel: 'mic', presetId: localPreset.id });
+      } catch {
+        if (factoryPreset) onChangePreset(clonePreset(factoryPreset));
+      }
+    }
+  }
+
+  $: noiseAmount = localPreset.noise_canceller?.amount ?? 0;
+  $: gateThreshold = localPreset.noise_gate?.threshold_db ?? -40;
+  $: gateAttack = localPreset.noise_gate?.attack_ms ?? 10;
+  $: gateRelease = localPreset.noise_gate?.release_ms ?? 100;
+  $: gateHysteresis = localPreset.noise_gate?.hysteresis_db ?? 6;
+
+  $: compThreshold = localPreset.compressor?.threshold_db ?? -18;
+  $: compRatio = localPreset.compressor?.ratio ?? 3;
+  $: compMakeup = localPreset.compressor?.makeup_gain_db ?? 2;
+  $: compKnee = localPreset.compressor?.knee_db ?? 3;
 
   // Real Gain Reduction calculation
   $: compReduction = (() => {
-    if (!meter || !(currentPreset.compressor?.enabled ?? true)) return '0.0';
+    if (!meter || !(localPreset.compressor?.enabled ?? true)) return '0.0';
     if (meter.peak_dbfs > compThreshold && compRatio > 1) {
       const red = (meter.peak_dbfs - compThreshold) * (1 - 1 / compRatio);
       return red > 0 ? red.toFixed(1) : '0.0';
@@ -48,18 +147,30 @@
     return '0.0';
   })();
 
-  $: deviceOptions = [
-    { value: 'default', label: $t('mic.default_input') } as SelectOption,
-    ...(devices || [])
-      .filter((d) => d.device_type.toLowerCase() === 'source')
-      .map((d) => ({
+  $: deviceOptions = (() => {
+    const list = (devices || []).filter((d) => d.device_type.toLowerCase() === 'source');
+    const options: SelectOption[] = [
+      { value: 'default', label: $t('mic.default_input') },
+      ...list.map((d) => ({
         value: d.name,
         label: d.description || d.name,
-      } as SelectOption)),
-  ];
+      })),
+    ];
+    if (
+      preferredInputDevice &&
+      preferredInputDevice !== 'default' &&
+      !list.some((d) => d.name === preferredInputDevice)
+    ) {
+      options.push({
+        value: preferredInputDevice,
+        label: `${preferredInputDevice} (${$t('mixer.device_disconnected', { default: 'Disconnected — Using System Default' })})`,
+      });
+    }
+    return options;
+  })();
 
   function openSaveCustomModal() {
-    customPresetName = currentPreset.name + ' (Custom)';
+    customPresetName = localPreset.name + ' (Custom)';
     isSavingCustom = true;
   }
 
@@ -67,11 +178,12 @@
     const trimmed = customPresetName.trim();
     if (!trimmed) return;
     const newPreset: Preset = {
-      ...JSON.parse(JSON.stringify(currentPreset)),
+      ...clonePreset(localPreset),
       id: `custom_${Date.now()}`,
       name: trimmed,
       description: `Custom tuned microphone preset`,
       category: 'custom',
+      tags: ['mic', 'custom'],
     };
     if (onSaveCustomPreset) {
       onSaveCustomPreset('mic', newPreset);
@@ -79,133 +191,206 @@
     isSavingCustom = false;
   }
 
-  function handleNoiseChange(val: number) {
-    if (!currentPreset.noise_canceller) {
-      currentPreset.noise_canceller = { enabled: val > 0, amount: val, vad_threshold: 0.35 };
+  function handleNoiseChange(val: number, immediate = false) {
+    if (!localPreset.noise_canceller) {
+      localPreset.noise_canceller = { enabled: val > 0, amount: val, vad_threshold: 0.35 };
     } else {
-      currentPreset.noise_canceller.amount = val;
-      currentPreset.noise_canceller.enabled = val > 0;
+      localPreset.noise_canceller.amount = val;
+      localPreset.noise_canceller.enabled = val > 0;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(immediate);
   }
 
   function handleGateThresholdChange(val: number) {
-    if (!currentPreset.noise_gate) {
-      currentPreset.noise_gate = { enabled: true, threshold_db: val, attack_ms: 10, hold_ms: 50, release_ms: 100 };
+    if (!localPreset.noise_gate) {
+      localPreset.noise_gate = {
+        enabled: true,
+        threshold_db: val,
+        attack_ms: 10,
+        hold_ms: 50,
+        release_ms: 100,
+      };
     } else {
-      currentPreset.noise_gate.threshold_db = val;
+      localPreset.noise_gate.threshold_db = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleGateAttackChange(val: number) {
-    if (!currentPreset.noise_gate) {
-      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: val, hold_ms: 50, release_ms: 100 };
+    if (!localPreset.noise_gate) {
+      localPreset.noise_gate = {
+        enabled: true,
+        threshold_db: -40,
+        attack_ms: val,
+        hold_ms: 50,
+        release_ms: 100,
+      };
     } else {
-      currentPreset.noise_gate.attack_ms = val;
+      localPreset.noise_gate.attack_ms = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleGateReleaseChange(val: number) {
-    if (!currentPreset.noise_gate) {
-      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: val };
+    if (!localPreset.noise_gate) {
+      localPreset.noise_gate = {
+        enabled: true,
+        threshold_db: -40,
+        attack_ms: 10,
+        hold_ms: 50,
+        release_ms: val,
+      };
     } else {
-      currentPreset.noise_gate.release_ms = val;
+      localPreset.noise_gate.release_ms = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleGateHysteresisChange(val: number) {
-    if (!currentPreset.noise_gate) {
-      currentPreset.noise_gate = { enabled: true, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: 100, hysteresis_db: val };
+    if (!localPreset.noise_gate) {
+      localPreset.noise_gate = {
+        enabled: true,
+        threshold_db: -40,
+        attack_ms: 10,
+        hold_ms: 50,
+        release_ms: 100,
+        hysteresis_db: val,
+      };
     } else {
-      currentPreset.noise_gate.hysteresis_db = val;
+      localPreset.noise_gate.hysteresis_db = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleCompThresholdChange(val: number) {
-    if (!currentPreset.compressor) {
-      currentPreset.compressor = { enabled: true, threshold_db: val, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+    if (!localPreset.compressor) {
+      localPreset.compressor = {
+        enabled: true,
+        threshold_db: val,
+        ratio: 3,
+        attack_ms: 10,
+        release_ms: 100,
+        makeup_gain_db: 2,
+      };
     } else {
-      currentPreset.compressor.threshold_db = val;
+      localPreset.compressor.threshold_db = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleCompRatioChange(val: number) {
-    if (!currentPreset.compressor) {
-      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: val, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+    if (!localPreset.compressor) {
+      localPreset.compressor = {
+        enabled: true,
+        threshold_db: -18,
+        ratio: val,
+        attack_ms: 10,
+        release_ms: 100,
+        makeup_gain_db: 2,
+      };
     } else {
-      currentPreset.compressor.ratio = val;
+      localPreset.compressor.ratio = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleCompMakeupChange(val: number) {
-    if (!currentPreset.compressor) {
-      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: val };
+    if (!localPreset.compressor) {
+      localPreset.compressor = {
+        enabled: true,
+        threshold_db: -18,
+        ratio: 3,
+        attack_ms: 10,
+        release_ms: 100,
+        makeup_gain_db: val,
+      };
     } else {
-      currentPreset.compressor.makeup_gain_db = val;
+      localPreset.compressor.makeup_gain_db = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleCompKneeChange(val: number) {
-    if (!currentPreset.compressor) {
-      currentPreset.compressor = { enabled: true, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2, knee_db: val };
+    if (!localPreset.compressor) {
+      localPreset.compressor = {
+        enabled: true,
+        threshold_db: -18,
+        ratio: 3,
+        attack_ms: 10,
+        release_ms: 100,
+        makeup_gain_db: 2,
+        knee_db: val,
+      };
     } else {
-      currentPreset.compressor.knee_db = val;
+      localPreset.compressor.knee_db = val;
     }
-    onChangePreset(currentPreset);
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
   function handleToneChange(type: 'bass' | 'voice' | 'treble', val: number) {
-    if (type === 'bass') currentPreset.eq.bass_db = val;
-    if (type === 'voice') currentPreset.eq.voice_db = val;
-    if (type === 'treble') currentPreset.eq.treble_db = val;
-    onChangePreset(currentPreset);
+    if (type === 'bass') localPreset.eq.bass_db = val;
+    if (type === 'voice') localPreset.eq.voice_db = val;
+    if (type === 'treble') localPreset.eq.treble_db = val;
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
-  let micInputGain = 0;
   function handleInputGainChange(val: number) {
-    micInputGain = val;
-    onChangePreset(currentPreset);
+    if (!localPreset.eq) {
+      localPreset.eq = {
+        enabled: true,
+        bands: [],
+        bass_db: 0,
+        voice_db: 0,
+        treble_db: 0,
+        input_gain_db: val,
+      };
+    } else {
+      localPreset.eq.input_gain_db = val;
+    }
+    localPreset = { ...localPreset };
+    scheduleSavePreset(false);
   }
 
-  $: micPresets = allPresets.filter(p => p.category === 'mic' || p.category === 'custom');
+  $: micPresets = allPresets.filter((p) => {
+    if (p.category === 'mic') return true;
+    if (p.category === 'custom') {
+      if (p.tags?.includes('mic')) return true;
+      if (p.description?.toLowerCase().includes('mic') || p.description?.toLowerCase().includes('microphone')) return true;
+      if (p.noise_gate || p.compressor) return true;
+      return false;
+    }
+    return false;
+  });
 </script>
 
 <div class="channel-view mic-view">
-  <!-- Preset Bar (1:1 with ChannelTab) -->
+  <!-- Preset Bar -->
   <div class="preset-bar">
     <div class="preset-info">
       <div class="preset-icon-badge">
-        <Mic size={18} color="var(--color-channel-mic, #EC4899)" />
+        <Mic size={18} color={MIC_ACCENT} />
       </div>
       <div class="preset-titles">
         <div class="preset-title-row">
-          <span class="preset-name">{currentPreset.name}</span>
-          <button
-            class="star-btn"
-            class:is-fav={favoritePresets.includes(currentPreset.id)}
-            aria-label={favoritePresets.includes(currentPreset.id) ? 'Remove from favorites' : 'Add to favorites'}
-            on:click={() => onToggleFavorite?.(currentPreset.id)}
-          >
-            <Star
-              size={14}
-              fill={favoritePresets.includes(currentPreset.id) ? '#EAB308' : 'none'}
-              color={favoritePresets.includes(currentPreset.id) ? '#EAB308' : 'var(--color-text-muted)'}
-            />
-          </button>
+          <span class="preset-name">{localPreset.name}</span>
+          <span class="preset-ch-tag">MICROPHONE</span>
         </div>
-        <span class="preset-desc">{currentPreset.description}</span>
+        <span class="preset-desc">{localPreset.description}</span>
       </div>
     </div>
 
     <div class="header-controls">
-      <!-- Input Device Selector using CustomSelect -->
+      <!-- Input Device Selector -->
       <div class="device-select-container">
         <CustomSelect
           value={preferredInputDevice || 'default'}
@@ -215,17 +400,18 @@
         />
       </div>
 
-      <!-- Live Mic Monitor Toggle -->
+      <!-- MIC SIDETONE (VOICE MONITOR) -->
       <div class="monitor-wrapper" class:active={micMonitorEnabled}>
         <button
+          type="button"
           class="monitor-btn"
           class:active={micMonitorEnabled}
           aria-label={micMonitorEnabled ? $t('mic.mute_loopback') : $t('mic.listen_realtime')}
           on:click={() => onSetMicMonitor(!micMonitorEnabled, micMonitorVolume)}
-          title={micMonitorEnabled ? $t('mic.mute_loopback') : $t('mic.listen_realtime')}
+          title="MIC SIDETONE (VOICE MONITOR)"
         >
           <Headphones size={13} />
-          <span>{micMonitorEnabled ? $t('mic.live_monitoring_btn') : $t('mic.monitor_mic')}</span>
+          <span>MIC SIDETONE (VOICE MONITOR)</span>
         </button>
         {#if micMonitorEnabled}
           <div class="monitor-vol-box">
@@ -248,11 +434,32 @@
       </div>
 
       <div class="preset-actions-right">
-        <button class="save-custom-btn" on:click={openSaveCustomModal} title="Save current settings as a new custom preset">
+        {#if isModified}
+          <button
+            type="button"
+            class="reset-preset-btn"
+            on:click={handleResetToFactory}
+            title="Reset to factory preset values"
+          >
+            <RotateCcw size={14} />
+            <span>Reset</span>
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="save-custom-btn"
+          on:click={openSaveCustomModal}
+          title="Save current settings as a new custom preset"
+        >
           <BookmarkPlus size={14} />
           <span>Save Custom</span>
         </button>
-        <button class="browse-btn" aria-label={$t('mic.browse_presets_aria')} on:click={onOpenBrowser}>
+        <button
+          type="button"
+          class="browse-btn"
+          aria-label={$t('mic.browse_presets_aria')}
+          on:click={onOpenBrowser}
+        >
           <Search size={14} />
           <span>{$t('mic.browse_presets')}</span>
         </button>
@@ -260,16 +467,25 @@
     </div>
   </div>
 
-  <!-- Favorites Strip (1 to 7 slots) -->
+  <!-- Presets Quick-Select Strip -->
   <div class="favorites-strip">
-    <span class="fav-label">{$t('mic.favorites')}</span>
+    <span class="fav-label">PRESETS:</span>
     <div class="fav-slots">
       {#each micPresets.slice(0, 7) as favPreset, idx}
         <button
+          type="button"
           class="fav-pill"
-          class:active={favPreset.id === currentPreset.id}
+          class:active={favPreset.id === localPreset.id}
           aria-label={$t('mic.select_favorite', { idx: idx + 1, name: favPreset.name })}
-          on:click={() => onChangePreset(favPreset)}
+          on:click={() => {
+            lastIncomingPresetId = favPreset.id;
+            localPreset = clonePreset(favPreset);
+            if (onSelectPreset) {
+              onSelectPreset(favPreset);
+            } else {
+              onChangePreset(favPreset);
+            }
+          }}
         >
           <span class="fav-idx tabular-nums">{idx + 1}</span>
           <span class="fav-title">{favPreset.name}</span>
@@ -280,19 +496,12 @@
 
   <!-- Main Content Grid -->
   <div class="cards-grid">
-    <!-- Capabilities Banner (if rnnoise missing) -->
-    {#if capabilities && !capabilities.rnnoise}
-      <div class="caps-banner">
-        <AlertTriangle size={15} color="var(--color-accent-warning)" />
-        <span>{$t('mic.caps_warning')}</span>
-      </div>
-    {/if}
 
-    <!-- Equalizer Card -->
+    <!-- Equalizer & VOICE TONE Card -->
     <div class="card eq-card">
       <div class="card-header">
         <div class="card-title">
-          <Sliders size={15} color="var(--color-channel-mic)" />
+          <Sliders size={15} color={MIC_ACCENT} />
           <span>{$t('mic.eq_title')}</span>
         </div>
         <div class="card-actions">
@@ -300,102 +509,106 @@
             <input
               type="checkbox"
               aria-label={$t('mic.toggle_eq')}
-              bind:checked={currentPreset.eq.enabled}
-              on:change={() => onChangePreset(currentPreset)}
+              bind:checked={localPreset.eq.enabled}
+              on:change={() => {
+                localPreset = { ...localPreset };
+                scheduleSavePreset(true);
+              }}
             />
             <span class="toggle-slider"></span>
           </label>
         </div>
       </div>
 
-      <!-- Canvas Graph -->
+      <!-- Canvas Graph with Sleek Single-Band Inline Inspector -->
       <EqGraph
-        eqConfig={currentPreset.eq}
-        accentColor="#F97316"
+        eqConfig={localPreset.eq}
+        {meter}
+        accentColor={MIC_ACCENT}
         onChange={(eq) => {
-          currentPreset.eq = eq;
-          onChangePreset(currentPreset);
+          localPreset.eq = eq;
+          localPreset = { ...localPreset };
+          scheduleSavePreset(false);
         }}
       />
 
-      <!-- Quick Tone Sliders with SonarSlider -->
-      <div class="quick-tone-grid">
-        <SonarSlider
-          label={$t('mic.bass_depth')}
-          min={-12}
-          max={12}
-          step={0.5}
-          unit=" dB"
-          centerDetent={true}
-          defaultValue={0}
-          accentColor="#F97316"
-          value={currentPreset.eq.bass_db ?? 0}
-          disabled={!currentPreset.eq.enabled}
-          onChange={(val) => handleToneChange('bass', val)}
-        />
-        <SonarSlider
-          label={$t('mic.vocal_clarity')}
-          min={-12}
-          max={12}
-          step={0.5}
-          unit=" dB"
-          centerDetent={true}
-          defaultValue={0}
-          accentColor="#F97316"
-          value={currentPreset.eq.voice_db ?? 0}
-          disabled={!currentPreset.eq.enabled}
-          onChange={(val) => handleToneChange('voice', val)}
-        />
-        <SonarSlider
-          label={$t('mic.crisp_air')}
-          min={-12}
-          max={12}
-          step={0.5}
-          unit=" dB"
-          centerDetent={true}
-          defaultValue={0}
-          accentColor="#F97316"
-          value={currentPreset.eq.treble_db ?? 0}
-          disabled={!currentPreset.eq.enabled}
-          onChange={(val) => handleToneChange('treble', val)}
-        />
-        <SonarSlider
-          label={$t('mic.input_gain')}
-          min={-12}
-          max={12}
-          step={0.5}
-          unit=" dB"
-          centerDetent={true}
-          defaultValue={0}
-          accentColor="#F97316"
-          value={micInputGain}
-          disabled={!currentPreset.eq.enabled}
-          onChange={(val) => handleInputGainChange(val)}
-        />
+      <!-- VOICE TONE Section -->
+      <div class="voice-tone-section">
+        <div class="voice-tone-header">
+          <span class="voice-tone-title">VOICE TONE</span>
+        </div>
+        <div class="quick-tone-grid">
+          <SonarSlider
+            label={$t('mic.bass_depth')}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={MIC_ACCENT}
+            value={localPreset.eq.bass_db ?? 0}
+            disabled={!localPreset.eq.enabled}
+            onChange={(val) => handleToneChange('bass', val)}
+          />
+          <SonarSlider
+            label={$t('mic.vocal_clarity')}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={MIC_ACCENT}
+            value={localPreset.eq.voice_db ?? 0}
+            disabled={!localPreset.eq.enabled}
+            onChange={(val) => handleToneChange('voice', val)}
+          />
+          <SonarSlider
+            label={$t('mic.crisp_air')}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={MIC_ACCENT}
+            value={localPreset.eq.treble_db ?? 0}
+            disabled={!localPreset.eq.enabled}
+            onChange={(val) => handleToneChange('treble', val)}
+          />
+          <SonarSlider
+            label={$t('mic.input_gain')}
+            min={-12}
+            max={12}
+            step={0.5}
+            unit="dB"
+            centerDetent={true}
+            defaultValue={0}
+            accentColor={MIC_ACCENT}
+            value={localPreset.eq?.input_gain_db ?? 0}
+            disabled={false}
+            onChange={(val) => handleInputGainChange(val)}
+          />
+        </div>
       </div>
     </div>
 
     <!-- Bottom DSP Cards Grid -->
     <div class="dsp-grid">
-      <!-- Noise Remover (RNNoise + VAD Voice Isolation) -->
+      <!-- CLEARCAST AI NOISE CANCELLATION -->
       <div class="card dsp-card" class:is-disabled={!isRnnoiseAvailable}>
         <div class="card-header">
           <div class="card-title">
-            <Waves size={15} color="var(--color-channel-mic, #EC4899)" />
-            <span>{$t('mic.noise_remover')}</span>
+            <Waves size={15} color={MIC_ACCENT} />
+            <span>CLEARCAST AI NOISE CANCELLATION</span>
           </div>
           <div class="card-status-badges">
-            {#if noiseAmount >= 85}
-              <span class="voice-iso-badge" title="NVIDIA Broadcast-grade neural voice isolation envelope active">
-                <Sparkles size={11} />
-                <span>AI Voice Isolation</span>
-              </span>
-            {/if}
             <span class="dsp-badge" class:active={isRnnoiseAvailable && noiseAmount > 0}>
               {#if !isRnnoiseAvailable}
                 {$t('mic.unavailable')}
               {:else if noiseAmount > 0}
-                {$t('mic.wet', { amount: noiseAmount })}
+                {noiseAmount}% ACTIVE
               {:else}
                 {$t('mic.bypass')}
               {/if}
@@ -404,10 +617,34 @@
         </div>
         <p class="dsp-desc">{$t('mic.noise_remover_desc')}</p>
         <div class="dsp-presets-row">
-          <button class="dsp-pill" class:active={noiseAmount === 0} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(0)}>{$t('mic.off')}</button>
-          <button class="dsp-pill" class:active={noiseAmount === 40} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(40)}>{$t('mic.low')}</button>
-          <button class="dsp-pill" class:active={noiseAmount === 65} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(65)}>{$t('mic.balanced')}</button>
-          <button class="dsp-pill" class:active={noiseAmount === 100} disabled={!isRnnoiseAvailable} on:click={() => handleNoiseChange(100)}>{$t('mic.max')}</button>
+          <button
+            type="button"
+            class="dsp-pill"
+            class:active={noiseAmount === 0}
+            disabled={!isRnnoiseAvailable}
+            on:click={() => handleNoiseChange(0, true)}>{$t('mic.off')}</button
+          >
+          <button
+            type="button"
+            class="dsp-pill"
+            class:active={noiseAmount === 40}
+            disabled={!isRnnoiseAvailable}
+            on:click={() => handleNoiseChange(40, true)}>{$t('mic.low')}</button
+          >
+          <button
+            type="button"
+            class="dsp-pill"
+            class:active={noiseAmount === 65}
+            disabled={!isRnnoiseAvailable}
+            on:click={() => handleNoiseChange(65, true)}>{$t('mic.balanced')}</button
+          >
+          <button
+            type="button"
+            class="dsp-pill"
+            class:active={noiseAmount === 100}
+            disabled={!isRnnoiseAvailable}
+            on:click={() => handleNoiseChange(100, true)}>{$t('mic.max')}</button
+          >
         </div>
         <div class="dsp-slider-wrapper">
           <SonarSlider
@@ -416,33 +653,40 @@
             max={100}
             step={1}
             unit="%"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            accentColor={MIC_ACCENT}
             value={noiseAmount}
             disabled={!isRnnoiseAvailable}
-            onChange={(val) => handleNoiseChange(val)}
+            onChange={(val) => handleNoiseChange(val, false)}
           />
         </div>
       </div>
 
-      <!-- Noise Gate -->
+      <!-- NOISE GATE -->
       <div class="card dsp-card">
         <div class="card-header">
           <div class="card-title">
-            <Shield size={15} color="var(--color-channel-mic, #EC4899)" />
-            <span>{$t('mic.noise_gate')}</span>
+            <Shield size={15} color={MIC_ACCENT} />
+            <span>NOISE GATE</span>
           </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
               aria-label={$t('mic.toggle_gate')}
-              checked={currentPreset.noise_gate?.enabled ?? true}
+              checked={localPreset.noise_gate?.enabled ?? true}
               on:change={(e) => {
-                if (!currentPreset.noise_gate) {
-                  currentPreset.noise_gate = { enabled: e.currentTarget.checked, threshold_db: -40, attack_ms: 10, hold_ms: 50, release_ms: 100 };
+                if (!localPreset.noise_gate) {
+                  localPreset.noise_gate = {
+                    enabled: e.currentTarget.checked,
+                    threshold_db: -40,
+                    attack_ms: 10,
+                    hold_ms: 50,
+                    release_ms: 100,
+                  };
                 } else {
-                  currentPreset.noise_gate.enabled = e.currentTarget.checked;
+                  localPreset.noise_gate.enabled = e.currentTarget.checked;
                 }
-                onChangePreset(currentPreset);
+                localPreset = { ...localPreset };
+                scheduleSavePreset(true);
               }}
             />
             <span class="toggle-slider"></span>
@@ -450,7 +694,7 @@
         </div>
         <p class="dsp-desc">{$t('mic.noise_gate_desc')}</p>
         <div class="dsp-meter-row">
-          {#if meter && meter.peak_dbfs > gateThreshold && (currentPreset.noise_gate?.enabled ?? true)}
+          {#if meter && meter.peak_dbfs > gateThreshold && (localPreset.noise_gate?.enabled ?? true)}
             <span class="gate-status-pill open">{$t('mic.gate_open')}</span>
           {:else}
             <span class="gate-status-pill closed">{$t('mic.gate_closed')}</span>
@@ -462,10 +706,10 @@
             min={-60}
             max={-10}
             step={1}
-            unit=" dBFS"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="dBFS"
+            accentColor={MIC_ACCENT}
             value={gateThreshold}
-            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            disabled={!(localPreset.noise_gate?.enabled ?? true)}
             onChange={(val) => handleGateThresholdChange(val)}
           />
           <SonarSlider
@@ -473,10 +717,10 @@
             min={1}
             max={100}
             step={1}
-            unit=" ms"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="ms"
+            accentColor={MIC_ACCENT}
             value={gateAttack}
-            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            disabled={!(localPreset.noise_gate?.enabled ?? true)}
             onChange={(val) => handleGateAttackChange(val)}
           />
           <SonarSlider
@@ -484,10 +728,10 @@
             min={10}
             max={1000}
             step={5}
-            unit=" ms"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="ms"
+            accentColor={MIC_ACCENT}
             value={gateRelease}
-            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            disabled={!(localPreset.noise_gate?.enabled ?? true)}
             onChange={(val) => handleGateReleaseChange(val)}
           />
           <SonarSlider
@@ -495,34 +739,42 @@
             min={0}
             max={12}
             step={0.5}
-            unit=" dB"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="dB"
+            accentColor={MIC_ACCENT}
             value={gateHysteresis}
-            disabled={!(currentPreset.noise_gate?.enabled ?? true)}
+            disabled={!(localPreset.noise_gate?.enabled ?? true)}
             onChange={(val) => handleGateHysteresisChange(val)}
           />
         </div>
       </div>
 
-      <!-- Compressor -->
+      <!-- COMPRESSOR (VOICE STABILIZER) -->
       <div class="card dsp-card">
         <div class="card-header">
           <div class="card-title">
-            <Volume2 size={15} color="var(--color-channel-mic, #EC4899)" />
-            <span>{$t('mic.compressor')}</span>
+            <Volume2 size={15} color={MIC_ACCENT} />
+            <span>COMPRESSOR (VOICE STABILIZER)</span>
           </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
               aria-label={$t('mic.toggle_compressor')}
-              checked={currentPreset.compressor?.enabled ?? true}
+              checked={localPreset.compressor?.enabled ?? true}
               on:change={(e) => {
-                if (!currentPreset.compressor) {
-                  currentPreset.compressor = { enabled: e.currentTarget.checked, threshold_db: -18, ratio: 3, attack_ms: 10, release_ms: 100, makeup_gain_db: 2 };
+                if (!localPreset.compressor) {
+                  localPreset.compressor = {
+                    enabled: e.currentTarget.checked,
+                    threshold_db: -18,
+                    ratio: 3,
+                    attack_ms: 10,
+                    release_ms: 100,
+                    makeup_gain_db: 2,
+                  };
                 } else {
-                  currentPreset.compressor.enabled = e.currentTarget.checked;
+                  localPreset.compressor.enabled = e.currentTarget.checked;
                 }
-                onChangePreset(currentPreset);
+                localPreset = { ...localPreset };
+                scheduleSavePreset(true);
               }}
             />
             <span class="toggle-slider"></span>
@@ -531,7 +783,9 @@
         <p class="dsp-desc">{$t('mic.compressor_desc')}</p>
         <div class="dsp-meter-row">
           <span class="compressor-gr-pill" class:active={parseFloat(compReduction) > 0}>
-            {parseFloat(compReduction) > 0 ? $t('mic.gain_reduction_val', { reduction: compReduction }) : $t('mic.gain_reduction_zero')}
+            {parseFloat(compReduction) > 0
+              ? $t('mic.gain_reduction_val', { reduction: compReduction })
+              : $t('mic.gain_reduction_zero')}
           </span>
         </div>
         <div class="dsp-controls-list">
@@ -540,10 +794,10 @@
             min={-40}
             max={0}
             step={1}
-            unit=" dBFS"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="dBFS"
+            accentColor={MIC_ACCENT}
             value={compThreshold}
-            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            disabled={!(localPreset.compressor?.enabled ?? true)}
             onChange={(val) => handleCompThresholdChange(val)}
           />
           <SonarSlider
@@ -552,9 +806,9 @@
             max={20}
             step={0.5}
             unit=":1"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            accentColor={MIC_ACCENT}
             value={compRatio}
-            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            disabled={!(localPreset.compressor?.enabled ?? true)}
             onChange={(val) => handleCompRatioChange(val)}
           />
           <SonarSlider
@@ -562,10 +816,10 @@
             min={0}
             max={24}
             step={0.5}
-            unit=" dB"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="dB"
+            accentColor={MIC_ACCENT}
             value={compMakeup}
-            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            disabled={!(localPreset.compressor?.enabled ?? true)}
             onChange={(val) => handleCompMakeupChange(val)}
           />
           <SonarSlider
@@ -573,10 +827,10 @@
             min={0}
             max={12}
             step={0.5}
-            unit=" dB"
-            accentColor="var(--color-channel-mic, #EC4899)"
+            unit="dB"
+            accentColor={MIC_ACCENT}
             value={compKnee}
-            disabled={!(currentPreset.compressor?.enabled ?? true)}
+            disabled={!(localPreset.compressor?.enabled ?? true)}
             onChange={(val) => handleCompKneeChange(val)}
           />
         </div>
@@ -587,7 +841,7 @@
   {#if isSavingCustom}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="custom-modal-backdrop" on:click={() => isSavingCustom = false}>
+    <div class="custom-modal-backdrop" on:click={() => (isSavingCustom = false)}>
       <div class="custom-modal-box" on:click|stopPropagation>
         <div class="modal-header">
           <BookmarkPlus size={18} color="var(--color-accent-brand, #FF5200)" />
@@ -605,7 +859,7 @@
           }}
         />
         <div class="modal-btn-row">
-          <button type="button" class="btn-cancel" on:click={() => isSavingCustom = false}>Cancel</button>
+          <button type="button" class="btn-cancel" on:click={() => (isSavingCustom = false)}>Cancel</button>
           <button type="button" class="btn-confirm" on:click={handleConfirmSaveCustom}>Save Preset</button>
         </div>
       </div>
@@ -617,11 +871,12 @@
   .channel-view {
     height: 100%;
     overflow-y: auto;
-    padding: 24px;
-    background: var(--color-bg-app);
+    padding: 20px 24px;
+    background: var(--color-bg-app, #0C0E12);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+    user-select: none;
     font-family: var(--font-sans);
   }
 
@@ -629,29 +884,29 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--color-surface-1);
-    padding: 14px 20px;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    box-shadow: var(--shadow-depth-sm);
+    background: var(--color-surface-1, #12151B);
+    padding: 12px 18px;
+    border-radius: var(--radius-md, 6px);
+    border: 1px solid var(--color-border-default, #232834);
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .preset-info {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
   .preset-icon-badge {
-    width: 38px;
-    height: 38px;
-    border-radius: var(--radius-md);
-    background: var(--color-surface-3);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-surface-2, #171B22);
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--color-border-default);
-    box-shadow: var(--shadow-depth-sm);
+    border: 1px solid var(--color-border-default, #232834);
   }
 
   .preset-titles {
@@ -667,66 +922,74 @@
   }
 
   .preset-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--color-text-primary);
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--color-text-primary, #F8FAFC);
   }
 
-  .star-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
+  .preset-ch-tag {
+    font-size: 9px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs, 3px);
+    border: 1px solid rgba(255, 82, 0, 0.35);
+    color: var(--color-channel-mic, #FF5200);
+    letter-spacing: 0.5px;
   }
 
   .preset-desc {
-    font-size: 12px;
-    color: var(--color-text-secondary);
+    font-size: 11px;
+    color: var(--color-text-secondary, #94A3B8);
   }
 
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .monitor-wrapper {
     display: flex;
     align-items: center;
-    background: var(--color-surface-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
+    background: var(--color-surface-2, #171B22);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-sm, 4px);
     transition: border-color var(--transition-fast), background-color var(--transition-fast);
   }
+
   .monitor-wrapper:hover {
-    border-color: var(--color-border-bright);
+    border-color: var(--color-border-bright, #2F3646);
   }
+
   .monitor-wrapper.active {
     background: var(--color-accent-brand-subtle);
-    border-color: var(--color-accent-brand);
+    border-color: var(--color-accent-brand, #FF5200);
   }
 
   .monitor-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px;
+    padding: 7px 11px;
     background: transparent;
     border: none;
-    color: var(--color-text-secondary);
-    font-size: 11px;
-    font-weight: 700;
+    color: var(--color-text-secondary, #94A3B8);
+    font-size: 10px;
+    font-weight: 800;
     font-family: var(--font-sans);
+    letter-spacing: 0.4px;
     cursor: pointer;
     transition: color var(--transition-fast);
   }
+
   .monitor-btn:hover {
-    color: var(--color-text-primary);
+    color: var(--color-text-primary, #F8FAFC);
   }
+
   .monitor-btn.active {
-    color: var(--color-channel-mic);
+    color: var(--color-channel-mic, #FF5200);
   }
 
   .monitor-vol-box {
@@ -734,8 +997,8 @@
     align-items: center;
     gap: 6px;
     padding-inline-end: 10px;
-    padding-inline-start: 2px;
-    border-inline-start: 1px solid var(--color-border-bright);
+    padding-inline-start: 6px;
+    border-inline-start: 1px solid var(--color-border-bright, #2F3646);
   }
 
   .monitor-slider {
@@ -743,24 +1006,21 @@
     -webkit-appearance: none;
     width: 60px;
     height: 4px;
-    background: var(--color-surface-1);
+    background: var(--color-neutral-950, #08090C);
     border-radius: 2px;
     outline: none;
     cursor: pointer;
   }
+
   .monitor-slider::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
     width: 12px;
     height: 12px;
-    border-radius: var(--radius-sm);
-    background: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-xs, 3px);
+    background: var(--color-neutral-200, #E2E8F0);
+    border: 1px solid var(--color-border-bright, #2F3646);
     cursor: pointer;
-    transition: border-color var(--transition-fast);
-  }
-  .monitor-slider:hover::-webkit-slider-thumb {
-    border-color: var(--color-accent-brand);
   }
 
   .monitor-vol-text {
@@ -768,42 +1028,56 @@
     font-variant-numeric: var(--tabular-nums);
     font-size: 10px;
     font-weight: 700;
-    color: var(--color-channel-mic);
+    color: var(--color-channel-mic, #FF5200);
     width: 28px;
     text-align: end;
   }
 
-  .browse-btn {
+  .browse-btn,
+  .save-custom-btn,
+  .reset-preset-btn {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 8px 14px;
-    background: var(--color-surface-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
+    gap: 6px;
+    padding: 7px 12px;
+    background: var(--color-surface-2, #171B22);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-text-primary, #F8FAFC);
     font-size: 11px;
     font-weight: 700;
     font-family: var(--font-sans);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition: all var(--transition-fast);
   }
-  .browse-btn:hover {
-    background: var(--color-surface-hover);
-    border-color: var(--color-border-bright);
+
+  .reset-preset-btn {
+    border-color: rgba(255, 82, 0, 0.4);
+    color: var(--color-accent-brand, #FF5200);
+  }
+
+  .browse-btn:hover,
+  .save-custom-btn:hover {
+    background: var(--color-surface-hover, #262C38);
+    border-color: var(--color-border-bright, #2F3646);
+  }
+
+  .reset-preset-btn:hover {
+    background: rgba(255, 82, 0, 0.12);
+    border-color: var(--color-accent-brand, #FF5200);
   }
 
   .favorites-strip {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
 
   .fav-label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
-    color: var(--color-text-muted);
-    letter-spacing: 0.5px;
+    color: var(--color-text-muted, #64748B);
+    letter-spacing: 0.6px;
   }
 
   .fav-slots {
@@ -817,27 +1091,31 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 12px;
-    background: var(--color-surface-1);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
+    padding: 5px 11px;
+    background: var(--color-surface-1, #12151B);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-text-secondary, #94A3B8);
     font-size: 11px;
+    font-weight: 600;
     font-family: var(--font-sans);
     cursor: pointer;
-    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+    transition: all var(--transition-fast);
   }
+
   .fav-pill:hover {
-    color: var(--color-text-primary);
-    background: var(--color-surface-hover);
-    border-color: var(--color-border-bright);
+    color: var(--color-text-primary, #F8FAFC);
+    background: var(--color-surface-hover, #262C38);
+    border-color: var(--color-border-bright, #2F3646);
   }
+
   .fav-pill.active {
     background: var(--color-accent-brand-subtle);
-    border-color: var(--color-channel-mic);
-    color: var(--color-channel-mic);
+    border-color: var(--color-channel-mic, #FF5200);
+    color: var(--color-channel-mic, #FF5200);
     font-weight: 700;
   }
+
   .fav-idx {
     font-weight: 800;
     font-family: var(--font-mono);
@@ -847,36 +1125,31 @@
   .cards-grid {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
   }
 
   .card {
-    background: var(--color-surface-1);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    padding: 18px;
-    box-shadow: var(--shadow-depth-sm);
-    transition: border-color var(--transition-fast);
-  }
-  .card:hover {
-    border-color: var(--color-border-bright);
+    background: var(--color-surface-1, #12151B);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-md, 6px);
+    padding: 16px 18px;
   }
 
   .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .card-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
-    color: var(--color-text-primary);
-    letter-spacing: 0.5px;
+    color: var(--color-text-primary, #F8FAFC);
+    letter-spacing: 0.6px;
     text-transform: uppercase;
   }
 
@@ -886,20 +1159,23 @@
     width: 36px;
     height: 20px;
   }
+
   .toggle-switch input {
     opacity: 0;
     width: 0;
     height: 0;
   }
+
   .toggle-slider {
     position: absolute;
     cursor: pointer;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-color: var(--color-surface-3);
-    border: 1px solid var(--color-border-default);
+    inset: 0;
+    background-color: var(--color-surface-3, #1E232D);
+    border: 1px solid var(--color-border-default, #232834);
     transition: background-color var(--transition-fast), border-color var(--transition-fast);
     border-radius: 20px;
   }
+
   .toggle-slider:before {
     position: absolute;
     content: "";
@@ -907,19 +1183,19 @@
     width: 14px;
     left: 2px;
     bottom: 2px;
-    background-color: var(--color-neutral-200);
-    border: 1px solid var(--color-border-bright);
+    background-color: var(--color-neutral-200, #E2E8F0);
     transition: transform var(--transition-fast);
     border-radius: 50%;
   }
+
   input:checked + .toggle-slider {
     background-color: var(--color-accent-brand-subtle);
-    border-color: var(--color-channel-mic);
+    border-color: var(--color-channel-mic, #FF5200);
   }
+
   input:checked + .toggle-slider:before {
     transform: translateX(16px);
-    background-color: var(--color-channel-mic);
-    border-color: var(--color-channel-mic);
+    background-color: var(--color-channel-mic, #FF5200);
   }
 
   .preset-actions-right {
@@ -932,54 +1208,39 @@
     width: 200px;
   }
 
-  .save-custom-btn {
+  .voice-tone-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border-subtle, #1C2029);
     display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: var(--color-surface-2, #161B26);
-    border: 1px solid var(--color-border-bright, #2A344A);
-    border-radius: var(--radius-sm, 4px);
-    color: var(--color-neutral-300, #CBD5E1);
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all var(--transition-fast, 120ms);
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .save-custom-btn:hover {
-    background: var(--color-surface-hover, #252D40);
-    color: var(--color-accent-brand, #FF5200);
-    border-color: var(--color-accent-brand, #FF5200);
+  .voice-tone-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .voice-tone-title {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    color: var(--color-text-secondary, #94A3B8);
+    text-transform: uppercase;
   }
 
   .quick-tone-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--color-border-subtle);
   }
 
   .card-status-badges {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  .voice-iso-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 9px;
-    font-weight: 800;
-    padding: 2px 7px;
-    border-radius: var(--radius-sm);
-    background: rgba(34, 197, 94, 0.15);
-    color: #4ADE80;
-    border: 1px solid rgba(34, 197, 94, 0.4);
-    letter-spacing: 0.3px;
   }
 
   .dsp-slider-wrapper {
@@ -989,7 +1250,7 @@
   .dsp-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    gap: 14px;
   }
 
   .dsp-card {
@@ -1000,25 +1261,27 @@
 
   .dsp-desc {
     font-size: 11px;
-    color: var(--color-text-secondary);
+    color: var(--color-text-secondary, #94A3B8);
     line-height: 1.4;
-    margin-bottom: 14px;
-    min-height: 32px;
+    margin-bottom: 12px;
+    min-height: 30px;
   }
 
   .dsp-badge {
     font-size: 9px;
     font-weight: 800;
+    font-family: var(--font-mono);
     padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    background: var(--color-surface-3);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-xs, 3px);
+    background: var(--color-surface-2, #171B22);
+    color: var(--color-text-muted, #64748B);
+    border: 1px solid var(--color-border-default, #232834);
   }
+
   .dsp-badge.active {
     background: var(--color-accent-brand-subtle);
-    color: var(--color-channel-mic);
-    border-color: var(--color-channel-mic);
+    color: var(--color-channel-mic, #FF5200);
+    border-color: var(--color-channel-mic, #FF5200);
   }
 
   .dsp-presets-row {
@@ -1026,47 +1289,38 @@
     gap: 6px;
     margin-bottom: 12px;
   }
+
   .dsp-pill {
     flex: 1;
-    background: var(--color-surface-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
+    background: var(--color-surface-2, #171B22);
+    border: 1px solid var(--color-border-default, #232834);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--color-text-secondary, #94A3B8);
     font-size: 9px;
     font-weight: 700;
     font-family: var(--font-sans);
     padding: 6px 4px;
     cursor: pointer;
-    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+    transition: all var(--transition-fast);
     text-align: center;
   }
+
   .dsp-pill:hover {
-    color: var(--color-text-primary);
-    background: var(--color-surface-hover);
-    border-color: var(--color-border-bright);
-  }
-  .dsp-pill.active {
-    background: var(--color-accent-brand-subtle);
-    border-color: var(--color-channel-mic);
-    color: var(--color-channel-mic);
+    color: var(--color-text-primary, #F8FAFC);
+    background: var(--color-surface-hover, #262C38);
+    border-color: var(--color-border-bright, #2F3646);
   }
 
-  .caps-banner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    background: var(--color-accent-warning-subtle);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    border-radius: var(--radius-md);
-    color: #FDE68A;
-    font-size: 11px;
-    font-weight: 500;
+  .dsp-pill.active {
+    background: var(--color-accent-brand-subtle);
+    border-color: var(--color-channel-mic, #FF5200);
+    color: var(--color-channel-mic, #FF5200);
   }
 
   .dsp-card.is-disabled {
     opacity: 0.55;
   }
+
   .dsp-card.is-disabled .dsp-pill {
     cursor: not-allowed;
   }
@@ -1082,47 +1336,51 @@
     align-items: center;
     margin-bottom: 12px;
   }
+
   .gate-status-pill {
     font-size: 10px;
     font-weight: 800;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    border-radius: var(--radius-xs, 3px);
     letter-spacing: 0.5px;
     transition: all var(--transition-fast);
   }
+
   .gate-status-pill.open {
     background: var(--color-accent-success-subtle);
-    color: var(--color-accent-success);
-    border: 1px solid var(--color-accent-success);
+    color: var(--color-accent-success, #00E599);
+    border: 1px solid var(--color-accent-success, #00E599);
   }
+
   .gate-status-pill.closed {
-    background: rgba(100, 116, 139, 0.15);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border-default);
+    background: var(--color-surface-2, #171B22);
+    color: var(--color-text-muted, #64748B);
+    border: 1px solid var(--color-border-default, #232834);
   }
 
   .compressor-gr-pill {
     font-size: 10px;
     font-weight: 800;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    background: rgba(100, 116, 139, 0.12);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border-default);
+    padding: 3px 8px;
+    border-radius: var(--radius-xs, 3px);
+    background: var(--color-surface-2, #171B22);
+    color: var(--color-text-muted, #64748B);
+    border: 1px solid var(--color-border-default, #232834);
     font-family: var(--font-mono);
     font-variant-numeric: var(--tabular-nums);
     transition: all var(--transition-fast);
   }
+
   .compressor-gr-pill.active {
     background: var(--color-accent-info-subtle);
-    color: var(--color-accent-info);
-    border: 1px solid var(--color-accent-info);
+    color: var(--color-accent-info, #00B4D8);
+    border: 1px solid var(--color-accent-info, #00B4D8);
   }
 
   .custom-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(8, 9, 12, 0.78);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -1131,10 +1389,10 @@
   }
 
   .custom-modal-box {
-    background: var(--color-surface-1, #11151F);
-    border: 1px solid var(--color-border-bright, #2A344A);
-    border-radius: var(--radius-lg, 8px);
-    box-shadow: var(--shadow-depth-lg, 0 6px 20px rgba(0,0,0,0.55));
+    background: var(--color-surface-1, #12151B);
+    border: 1px solid var(--color-border-bright, #2F3646);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: var(--shadow-depth-lg);
     width: 380px;
     padding: 20px;
     display: flex;
@@ -1163,15 +1421,14 @@
   }
 
   .custom-name-input {
-    background: var(--color-surface-2, #161B26);
-    border: 1px solid var(--color-border-default, #1F2637);
+    background: var(--color-surface-2, #171B22);
+    border: 1px solid var(--color-border-default, #232834);
     border-radius: var(--radius-sm, 4px);
     padding: 8px 12px;
     color: var(--color-text-primary, #F8FAFC);
     font-size: 0.85rem;
     font-family: var(--font-sans);
     outline: none;
-    transition: border-color var(--transition-fast, 120ms);
   }
 
   .custom-name-input:focus {
@@ -1189,7 +1446,7 @@
     padding: 6px 12px;
     border-radius: var(--radius-sm, 4px);
     background: transparent;
-    border: 1px solid var(--color-border-default, #1F2637);
+    border: 1px solid var(--color-border-default, #232834);
     color: var(--color-neutral-400, #94A3B8);
     font-size: 0.775rem;
     font-weight: 600;
@@ -1205,10 +1462,5 @@
     font-size: 0.775rem;
     font-weight: 700;
     cursor: pointer;
-    transition: opacity var(--transition-fast, 120ms);
-  }
-
-  .btn-confirm:hover {
-    opacity: 0.9;
   }
 </style>

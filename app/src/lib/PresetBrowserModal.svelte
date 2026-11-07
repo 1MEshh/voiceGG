@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import type { ChannelId, Preset } from '../types';
-  import { X, Search, Check, Sliders } from '@lucide/svelte';
+  import { X, Search, Check, Sliders, Trash2 } from '@lucide/svelte';
   import { t } from './i18n';
 
   export let isOpen: boolean;
@@ -9,8 +10,9 @@
   export let activePresetId: string;
   export let onClose: () => void;
   export let onSelectPreset: (preset: Preset) => void;
+  export let onDeletePreset: ((presetId: string) => void) | undefined = undefined;
 
-  let selectedCategory: 'all' | 'game' | 'chat' | 'media' | 'mic' = 'all';
+  let selectedCategory: 'all' | 'game' | 'chat' | 'media' | 'mic' | 'custom' = 'all';
   let searchQuery = '';
 
   $: if (isOpen && activeChannel) {
@@ -21,23 +23,55 @@
     }
   }
 
-  $: filteredPresets = allPresets.filter(p => {
-    const matchCat = selectedCategory === 'all' || p.category === selectedCategory;
+  $: filteredPresets = allPresets.filter((p) => {
+    // Scope custom presets by channel type
+    if (p.category === 'custom') {
+      const isMicCustom =
+        p.tags?.includes('mic') ||
+        p.description?.toLowerCase().includes('mic') ||
+        p.description?.toLowerCase().includes('microphone') ||
+        Boolean(p.noise_gate);
+      if (activeChannel === 'mic' && !isMicCustom) return false;
+      if (activeChannel !== 'mic' && isMicCustom) return false;
+    }
+
+    const matchCat =
+      selectedCategory === 'all'
+        ? (activeChannel === 'mic' ? p.category === 'mic' || p.category === 'custom' : p.category !== 'mic')
+        : p.category === selectedCategory;
+
     const matchSearch =
       searchQuery.trim() === '' ||
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+
     return matchCat && matchSearch;
   });
+
+  async function handleDeleteCustom(e: MouseEvent, presetId: string) {
+    e.stopPropagation();
+    if (confirm('Delete this custom preset?')) {
+      if (onDeletePreset) {
+        onDeletePreset(presetId);
+      } else {
+        try {
+          await invoke('delete_custom_preset', { presetId });
+        } catch (err) {
+          console.error('Failed to delete custom preset:', err);
+        }
+      }
+    }
+  }
 </script>
+
+<svelte:window on:keydown={(e) => isOpen && e.key === 'Escape' && onClose()} />
 
 {#if isOpen}
   <div
     class="modal-backdrop"
     role="presentation"
     on:click={onClose}
-    on:keydown={(e) => e.key === 'Escape' && onClose()}
   >
     <div
       class="modal-window"
@@ -90,6 +124,12 @@
             aria-current={selectedCategory === 'mic' ? 'true' : undefined}
             on:click={() => selectedCategory = 'mic'}
           >{$t('presets.mic')}</button>
+          <button
+            class="cat-btn"
+            class:active={selectedCategory === 'custom'}
+            aria-current={selectedCategory === 'custom' ? 'true' : undefined}
+            on:click={() => selectedCategory = 'custom'}
+          >{$t('presets.custom', { default: 'CUSTOM' })}</button>
         </div>
 
         <div class="search-box">
@@ -106,21 +146,41 @@
       <div class="preset-grid">
         {#each filteredPresets as preset}
           {@const isActive = preset.id === activePresetId}
-          <button
-            type="button"
+          <div
+            role="button"
+            tabindex="0"
             class="preset-card"
             class:active={isActive}
             aria-label={$t('presets.preset_aria', { name: preset.name, desc: preset.description })}
             on:click={() => onSelectPreset(preset)}
+            on:keydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectPreset(preset);
+              }
+            }}
           >
             <div class="card-top">
               <span class="category-badge">{$t(`presets.${preset.category}`) || preset.category.toUpperCase()}</span>
-              {#if isActive}
-                <div class="active-badge">
-                  <Check size={12} color="var(--color-accent-brand)" />
-                  <span>{$t('presets.active')}</span>
-                </div>
-              {/if}
+              <div class="card-top-right">
+                {#if isActive}
+                  <div class="active-badge">
+                    <Check size={12} color="var(--color-accent-brand)" />
+                    <span>{$t('presets.active')}</span>
+                  </div>
+                {/if}
+                {#if preset.category === 'custom' || preset.id.startsWith('custom_')}
+                  <button
+                    type="button"
+                    class="delete-preset-btn"
+                    title="Delete custom preset"
+                    aria-label="Delete custom preset"
+                    on:click={(e) => handleDeleteCustom(e, preset.id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                {/if}
+              </div>
             </div>
 
             <span class="preset-card-title">{preset.name}</span>
@@ -131,7 +191,7 @@
                 <span class="tag-pill">#{tag}</span>
               {/each}
             </div>
-          </button>
+          </div>
         {:else}
           <div class="no-results">
             <span>{$t('presets.no_results')}</span>
@@ -309,6 +369,30 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .card-top-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .delete-preset-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: var(--radius-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+  }
+
+  .delete-preset-btn:hover {
+    color: #EF4444;
+    background: rgba(239, 68, 68, 0.12);
   }
 
   .category-badge {

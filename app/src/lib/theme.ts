@@ -11,46 +11,55 @@ export const CHANNELS: Record<ChannelId, ChannelInfo> = {
   master: {
     id: 'master',
     label: 'MASTER',
-    defaultColor: '#E2E8F0', // Neutral Slate
+    defaultColor: '#F8FAFC', // Crisp Silver/White
     description: 'Final headphone audio mix with safety limiter',
   },
   game: {
     id: 'game',
     label: 'GAME',
-    defaultColor: '#10B981', // Sonar Emerald
+    defaultColor: '#00E599', // Sonar Tactical Mint/Green
     description: 'Gaming audio, spatial audio, and game-specific EQ presets',
   },
   chat: {
     id: 'chat',
     label: 'CHAT',
-    defaultColor: '#0EA5E9', // Sonar Sky
+    defaultColor: '#00B4D8', // Sonar Crisp Cyan
     description: 'Discord, voice calls, and vocal clarity enhancement',
   },
   media: {
     id: 'media',
     label: 'MEDIA',
-    defaultColor: '#EC4899', // Sonar Magenta
+    defaultColor: '#3B82F6', // Sonar Clean Studio Blue
     description: 'Music, browser videos, and media playback',
   },
   aux: {
     id: 'aux',
     label: 'AUX',
-    defaultColor: '#8B5CF6', // Sonar Violet
+    defaultColor: '#64748B', // Sonar Neutral Slate Steel
     description: 'System sounds, notifications, and secondary audio',
   },
   mic: {
     id: 'mic',
     label: 'MIC',
-    defaultColor: '#F97316', // Sonar Amber Orange
-    description: 'Physical microphone processing with deep noise reduction',
+    defaultColor: '#FF5200', // SteelSeries Signature Orange
+    description: 'Physical microphone processing with ClearCast AI noise cancellation',
   },
 };
 
 export const DEFAULT_CHANNEL_COLORS: Record<ChannelId, string> = {
-  master: '#E2E8F0',
-  game: '#10B981',
-  chat: '#0EA5E9',
-  media: '#EC4899',
-  aux: '#8B5CF6',
-  mic: '#F97316',
+  master: '#F8FAFC',
+  game: '#00E599',
+  chat: '#00B4D8',
+  media: '#3B82F6',
+  aux: '#64748B',
+  mic: '#FF5200',
 };
+
+export const CHANNEL_COLOR_SWATCHES: string[] = [
+  '#F8FAFC',
+  '#00E599',
+  '#00B4D8',
+  '#3B82F6',
+  '#64748B',
+  '#FF5200',
+];
