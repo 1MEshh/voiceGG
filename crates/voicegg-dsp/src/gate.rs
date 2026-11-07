@@ -129,6 +129,18 @@ impl NoiseGate {
             *sample = self.process_sample(*sample);
         }
     }
+
+    /// Returns the current gain reduction in decibels (0.0 = fully open / unattenuated, 100.0 = fully closed / muted).
+    #[must_use]
+    pub fn last_gain_reduction_db(&self) -> f32 {
+        if !self.enabled || self.current_gain >= 0.999 {
+            0.0
+        } else if self.current_gain <= 1e-5 {
+            100.0
+        } else {
+            -20.0 * self.current_gain.log10()
+        }
+    }
 }
 
 #[cfg(test)]

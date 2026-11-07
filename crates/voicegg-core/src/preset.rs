@@ -17,6 +17,8 @@ pub enum PresetCategory {
     Chat,
     /// Presets tailored for music, movies, or media consumption.
     Media,
+    /// Presets tailored for auxiliary audio devices.
+    Aux,
     /// Presets tailored for microphone processing and voice broadcast.
     Mic,
     /// User-created custom presets.
@@ -113,9 +115,6 @@ impl Preset {
                 "Neutral reference response without frequency coloration",
                 &["flat", "reference", "neutral"],
                 [0.0; 10],
-                0.0,
-                0.0,
-                0.0,
             ),
             Self::create_game_preset(
                 "game_cs2",
@@ -123,9 +122,6 @@ impl Preset {
                 "Footstep isolation, bomb defusal cues, and gunshot punch for CS2",
                 &["cs2", "tactical", "footsteps", "fps"],
                 [-3.0, -1.5, 0.0, 0.5, 1.5, 3.0, 4.5, 3.5, 1.0, 0.0],
-                -1.5,
-                3.0,
-                2.0,
             ),
             Self::create_game_preset(
                 "game_apex",
@@ -133,9 +129,6 @@ impl Preset {
                 "Shield cracking, sliding cues, and directional footsteps for Apex",
                 &["apex", "battle_royale", "footsteps", "fps"],
                 [-2.0, -1.0, 0.0, 0.0, 2.0, 4.0, 4.0, 3.0, 1.5, 0.0],
-                -1.0,
-                3.5,
-                2.0,
             ),
             Self::create_game_preset(
                 "game_overwatch2",
@@ -143,9 +136,6 @@ impl Preset {
                 "Character footsteps and ultimate audio cue enhancement",
                 &["overwatch", "hero_shooter", "cues", "fps"],
                 [-1.0, 0.0, 0.5, 1.0, 2.0, 3.5, 4.0, 2.5, 1.0, 0.0],
-                0.0,
-                3.0,
-                1.5,
             ),
             Self::create_game_preset(
                 "game_valorant",
@@ -153,9 +143,6 @@ impl Preset {
                 "Precision footstep clarity and ability detection (headphone tuning)",
                 &["valorant", "tactical", "footsteps", "fps"],
                 [-4.0, -2.0, 0.0, 1.0, 2.0, 3.5, 5.0, 4.0, 1.5, 0.0],
-                -2.0,
-                4.0,
-                2.5,
             ),
             Self::create_game_preset(
                 "game_r6",
@@ -163,9 +150,6 @@ impl Preset {
                 "Barricade destruction isolation and vertical footstep cues",
                 &["r6", "siege", "tactical", "footsteps", "fps"],
                 [-3.0, -1.0, 0.0, 1.0, 2.0, 3.5, 4.0, 3.0, 1.0, 0.0],
-                -1.0,
-                3.5,
-                2.0,
             ),
             Self::create_game_preset(
                 "game_warzone",
@@ -173,9 +157,6 @@ impl Preset {
                 "Suppresses explosion rumble and amplifies sprint footsteps and armor breaks",
                 &["warzone", "cod", "battle_royale", "footsteps", "fps"],
                 [-4.0, -2.0, 0.0, 0.5, 1.5, 3.0, 4.5, 3.5, 1.0, -1.0],
-                -2.0,
-                3.0,
-                2.5,
             ),
             Self::create_game_preset(
                 "game_tarkov",
@@ -183,9 +164,6 @@ impl Preset {
                 "Softens ear-piercing gunshots while isolating grass movement and wood footsteps",
                 &["tarkov", "hardcore", "footsteps", "fps"],
                 [-2.0, 0.0, 0.5, 1.5, 2.5, 4.0, 3.5, 2.0, 0.0, -2.0],
-                0.0,
-                3.5,
-                1.0,
             ),
             Self::create_game_preset(
                 "game_pubg",
@@ -193,9 +171,6 @@ impl Preset {
                 "Enhances distant vehicle engine audio and grass crawling footsteps",
                 &["pubg", "battle_royale", "footsteps", "fps"],
                 [-3.0, -1.5, 0.0, 1.0, 2.0, 3.5, 4.0, 3.0, 1.5, 0.0],
-                -1.5,
-                3.0,
-                2.0,
             ),
             Self::create_game_preset(
                 "game_fortnite",
@@ -203,9 +178,6 @@ impl Preset {
                 "Building placement audio cues, chest hum clarity, and glider positioning",
                 &["fortnite", "battle_royale", "building", "fps"],
                 [-1.0, 0.0, 1.0, 1.5, 2.0, 3.0, 3.5, 2.5, 1.0, 0.0],
-                0.5,
-                2.5,
-                1.5,
             ),
             Self::create_game_preset(
                 "game_footsteps",
@@ -213,9 +185,6 @@ impl Preset {
                 "Universal footstep isolation by attenuating masking bass rumble",
                 &["footsteps", "competitive", "fps"],
                 [-6.0, -3.0, -1.0, 1.0, 2.5, 4.5, 5.0, 3.0, 1.0, 0.0],
-                -4.0,
-                4.0,
-                1.5,
             ),
             Self::create_game_preset(
                 "game_immersive",
@@ -223,11 +192,50 @@ impl Preset {
                 "Cinematic sub-bass rumble with detailed top-end spatial cues",
                 &["immersive", "cinematic", "bass", "rpg"],
                 [5.0, 4.0, 2.0, 0.0, -1.0, 0.0, 1.5, 2.5, 3.5, 4.0],
-                4.0,
-                0.0,
-                3.0,
+            ),
+            Self::create_game_preset(
+                "game_finals",
+                "The Finals",
+                "Destruction debris attenuation and sprint audio cue clarity",
+                &["finals", "fps", "destruction", "footsteps"],
+                [-3.0, -1.0, 0.0, 1.0, 2.0, 3.5, 4.0, 3.0, 1.5, 0.0],
+            ),
+            Self::create_game_preset(
+                "game_rust",
+                "Rust",
+                "Isolates footstep rustling, gunshot directionality, and code lock beeps",
+                &["rust", "survival", "footsteps", "pvp"],
+                [-4.0, -2.0, 0.0, 1.0, 2.5, 4.0, 4.5, 3.0, 1.0, -1.0],
+            ),
+            Self::create_game_preset(
+                "game_dota2",
+                "Dota 2",
+                "Spell cast clarity and ping intelligibility during teamfights",
+                &["dota2", "moba", "teamfight", "strategy"],
+                [-2.0, 0.0, 1.0, 1.5, 2.0, 2.5, 2.5, 2.0, 1.0, 0.0],
+            ),
+            Self::create_game_preset(
+                "game_league",
+                "League of Legends",
+                "Skillshot audio cue isolation and objective ping clarity",
+                &["league", "lol", "moba", "esports"],
+                [-2.0, 0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 2.0, 1.0, 0.0],
+            ),
+            Self::create_game_preset(
+                "game_minecraft",
+                "Minecraft",
+                "Subtle cave ambiances, mob footsteps, and mining audio enhancement",
+                &["minecraft", "sandbox", "cues", "mining"],
+                [1.0, 1.5, 1.0, 0.5, 1.0, 2.0, 3.0, 2.5, 1.5, 0.5],
             ),
             // Chat Presets
+            Self::create_chat_preset(
+                "chat_flat",
+                "Flat (Chat)",
+                "Neutral uncolored voice chat reference",
+                &["chat", "flat", "neutral"],
+                [0.0; 10],
+            ),
             Self::create_chat_preset(
                 "chat_clear_voice",
                 "Clear Voice",
@@ -258,6 +266,13 @@ impl Preset {
             ),
             // Media Presets
             Self::create_media_preset(
+                "media_flat",
+                "Flat (Media)",
+                "Clean uncolored media listening reference",
+                &["media", "flat", "neutral"],
+                [0.0; 10],
+            ),
+            Self::create_media_preset(
                 "media_music_bass",
                 "Music Bass Boost",
                 "Punchy low-end emphasis for electronic, hip-hop, and rock tracks",
@@ -277,6 +292,28 @@ impl Preset {
                 "Expansive dynamic range with impactful cinematic bass and crisp dialogue",
                 &["movie", "cinema", "wide"],
                 [4.0, 3.0, 1.5, 0.0, 0.0, 1.5, 2.0, 2.5, 3.0, 3.5],
+            ),
+            // Aux Presets
+            Self::create_aux_preset(
+                "aux_flat",
+                "Flat (Aux)",
+                "Neutral reference response for auxiliary audio",
+                &["aux", "flat", "neutral"],
+                [0.0; 10],
+            ),
+            Self::create_aux_preset(
+                "aux_warm",
+                "Warm Aux",
+                "Full-bodied sound with gentle low-mid presence",
+                &["aux", "warm", "smooth"],
+                [1.5, 2.0, 1.5, 1.0, 0.5, 0.0, 0.0, 0.5, 0.0, -0.5],
+            ),
+            Self::create_aux_preset(
+                "aux_voice",
+                "Voice Aux",
+                "Optimized speech clarity for auxiliary voice inputs",
+                &["aux", "voice", "speech"],
+                [-3.0, -1.0, 0.0, 1.5, 2.5, 3.0, 3.0, 2.0, 0.0, -1.0],
             ),
             // Mic Presets
             Self::create_mic_preset(
@@ -330,16 +367,12 @@ impl Preset {
             .find(|p| p.id.eq_ignore_ascii_case(id))
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn create_game_preset(
         id: &str,
         name: &str,
         desc: &str,
         tags: &[&str],
         gains: [f32; 10],
-        bass: f32,
-        voice: f32,
-        treble: f32,
     ) -> Self {
         Self {
             schema: Self::CURRENT_SCHEMA,
@@ -348,13 +381,13 @@ impl Preset {
             description: desc.to_string(),
             category: PresetCategory::Game,
             tags: tags.iter().map(|s| (*s).to_string()).collect(),
-            eq: Self::make_10_band_eq(gains, bass, voice, treble),
+            eq: Self::make_10_band_eq(gains, 0.0, 0.0, 0.0),
             noise_canceller: None,
             compressor: None,
             noise_gate: None,
             limiter: Some(LimiterConfig {
                 enabled: true,
-                ceiling_db: -6.0,
+                ceiling_db: -0.5,
                 release_ms: 50.0,
             }),
             spatial: None,
@@ -376,7 +409,7 @@ impl Preset {
             description: desc.to_string(),
             category: PresetCategory::Chat,
             tags: tags.iter().map(|s| (*s).to_string()).collect(),
-            eq: Self::make_10_band_eq(gains, 0.0, 2.0, 1.0),
+            eq: Self::make_10_band_eq(gains, 0.0, 0.0, 0.0),
             noise_canceller: Some(NoiseCancellerConfig {
                 enabled: true,
                 amount: 60.0,
@@ -386,7 +419,7 @@ impl Preset {
             noise_gate: None,
             limiter: Some(LimiterConfig {
                 enabled: true,
-                ceiling_db: -6.0,
+                ceiling_db: -0.5,
                 release_ms: 50.0,
             }),
             spatial: None,
@@ -414,7 +447,35 @@ impl Preset {
             noise_gate: None,
             limiter: Some(LimiterConfig {
                 enabled: true,
-                ceiling_db: -6.0,
+                ceiling_db: -0.5,
+                release_ms: 50.0,
+            }),
+            spatial: None,
+            smart_volume: None,
+        }
+    }
+
+    fn create_aux_preset(
+        id: &str,
+        name: &str,
+        desc: &str,
+        tags: &[&str],
+        gains: [f32; 10],
+    ) -> Self {
+        Self {
+            schema: Self::CURRENT_SCHEMA,
+            id: id.to_string(),
+            name: name.to_string(),
+            description: desc.to_string(),
+            category: PresetCategory::Aux,
+            tags: tags.iter().map(|s| (*s).to_string()).collect(),
+            eq: Self::make_10_band_eq(gains, 0.0, 0.0, 0.0),
+            noise_canceller: None,
+            compressor: None,
+            noise_gate: None,
+            limiter: Some(LimiterConfig {
+                enabled: true,
+                ceiling_db: -0.5,
                 release_ms: 50.0,
             }),
             spatial: None,
@@ -442,9 +503,9 @@ impl Preset {
             tags: tags.iter().map(|s| (*s).to_string()).collect(),
             eq: Self::make_10_band_eq(
                 [-6.0, -3.0, 0.0, 0.5, 1.5, 2.5, 3.0, 2.0, 1.0, 0.0],
-                -2.0,
-                2.5,
-                1.5,
+                0.0,
+                0.0,
+                0.0,
             ),
             noise_canceller: Some(NoiseCancellerConfig {
                 enabled: true,
@@ -470,7 +531,7 @@ impl Preset {
             }),
             limiter: Some(LimiterConfig {
                 enabled: true,
-                ceiling_db: -1.0,
+                ceiling_db: -0.5,
                 release_ms: 30.0,
             }),
             spatial: None,
@@ -542,6 +603,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Manual export only to prevent dirtying git worktree during automated tests"]
     fn test_export_builtin_presets_to_repo() {
         let repo_presets = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()

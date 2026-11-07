@@ -14,6 +14,7 @@ pub struct Compressor {
     makeup_linear: f32,
     knee_db: f32,
     envelope: f32,
+    last_gain_reduction_db: f32,
 }
 
 impl Compressor {
@@ -30,6 +31,7 @@ impl Compressor {
             makeup_linear: 1.0,
             knee_db: config.knee_db,
             envelope: 0.0,
+            last_gain_reduction_db: 0.0,
         };
         comp.update_config(config);
         comp
@@ -46,15 +48,27 @@ impl Compressor {
         self.knee_db = config.knee_db.max(0.0);
     }
 
-    /// Resets the envelope detector.
+    /// Resets the envelope detector and gain reduction meter.
     pub fn reset(&mut self) {
         self.envelope = 0.0;
+        self.last_gain_reduction_db = 0.0;
+    }
+
+    /// Returns the most recent gain reduction in decibels (positive value, 0.0 = no reduction).
+    #[must_use]
+    pub fn last_gain_reduction_db(&self) -> f32 {
+        if !self.enabled {
+            0.0
+        } else {
+            self.last_gain_reduction_db
+        }
     }
 
     /// Processes a single audio sample.
     #[inline(always)]
     pub fn process_sample(&mut self, input: f32) -> f32 {
         if !self.enabled {
+            self.last_gain_reduction_db = 0.0;
             return input;
         }
 
@@ -90,6 +104,7 @@ impl Compressor {
             }
         };
 
+        self.last_gain_reduction_db = (-gain_db).max(0.0);
         let gain_linear = 10.0_f32.powf(gain_db / 20.0) * self.makeup_linear;
         input * gain_linear
     }
@@ -98,10 +113,66 @@ impl Compressor {
     #[inline]
     pub fn process_slice(&mut self, buffer: &mut [f32]) {
         if !self.enabled {
+            self.last_gain_reduction_db = 0.0;
             return;
         }
         for sample in buffer.iter_mut() {
             *sample = self.process_sample(*sample);
+        }
+    }
+
+    /// Processes stereo audio in-place using a linked envelope detector.
+    ///
+    /// Computes `max(|L[i]|, |R[i]|)` per sample and applies identical gain reduction
+    /// to both channels, preserving stereo soundstage and eliminating sequential-buffer modulation.
+    #[inline]
+    pub fn process_stereo(&mut self, left: &mut [f32], right: &mut [f32]) {
+        if !self.enabled {
+            self.last_gain_reduction_db = 0.0;
+            return;
+        }
+
+        let n = left.len().min(right.len());
+        for i in 0..n {
+            let l_abs = left[i].abs();
+            let r_abs = right[i].abs();
+            let abs_in = l_abs.max(r_abs);
+
+            let coeff = if abs_in > self.envelope {
+                self.attack_coeff
+            } else {
+                self.release_coeff
+            };
+            self.envelope = self.envelope * coeff + abs_in * (1.0 - coeff);
+
+            let env_db = if self.envelope <= 1e-5 {
+                -100.0
+            } else {
+                20.0 * self.envelope.log10()
+            };
+
+            let gain_db = if self.knee_db <= 0.01 {
+                if env_db > self.threshold_db {
+                    (self.threshold_db - env_db) * (1.0 - 1.0 / self.ratio)
+                } else {
+                    0.0
+                }
+            } else {
+                let half_knee = self.knee_db / 2.0;
+                if env_db <= self.threshold_db - half_knee {
+                    0.0
+                } else if env_db >= self.threshold_db + half_knee {
+                    (self.threshold_db - env_db) * (1.0 - 1.0 / self.ratio)
+                } else {
+                    let dx = env_db - self.threshold_db + half_knee;
+                    ((1.0 / self.ratio - 1.0) * dx * dx) / (2.0 * self.knee_db)
+                }
+            };
+
+            self.last_gain_reduction_db = (-gain_db).max(0.0);
+            let gain_linear = 10.0_f32.powf(gain_db / 20.0) * self.makeup_linear;
+            left[i] *= gain_linear;
+            right[i] *= gain_linear;
         }
     }
 }
@@ -171,5 +242,37 @@ mod tests {
         // Soft knee must introduce subtle gentle attenuation smoothly
         assert!(soft_out < hard_out);
         assert!(soft_out > 0.08);
+    }
+
+    #[test]
+    fn test_compressor_stereo_linking() {
+        let cfg = CompressorConfig {
+            enabled: true,
+            threshold_db: -12.0,
+            ratio: 4.0,
+            attack_ms: 0.1,
+            ..Default::default()
+        };
+
+        let mut comp = Compressor::new(48000.0, &cfg);
+
+        // L is loud (1.0 = 0 dBFS), R is quiet (0.1 = -20 dBFS)
+        let mut left = vec![1.0_f32; 500];
+        let mut right = vec![0.1_f32; 500];
+
+        comp.process_stereo(&mut left, &mut right);
+
+        let final_l = left.last().copied().unwrap();
+        let final_r = right.last().copied().unwrap();
+
+        // Since the envelope is driven by max(|L|, |R|) = 1.0,
+        // identical gain reduction factor must be applied to both channels!
+        let ratio_l = final_l / 1.0;
+        let ratio_r = final_r / 0.1;
+        assert!(
+            (ratio_l - ratio_r).abs() < 1e-4,
+            "Stereo-linked compressor must apply identical gain reduction: L ratio {ratio_l}, R ratio {ratio_r}"
+        );
+        assert!(comp.last_gain_reduction_db() > 5.0);
     }
 }

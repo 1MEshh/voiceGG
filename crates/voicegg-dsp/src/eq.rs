@@ -106,7 +106,8 @@ impl ParametricEq {
             return;
         }
 
-        for (i, band) in config.bands.iter().take(MAX_BANDS).enumerate() {
+        let num_bands = config.bands.len().min(MAX_BANDS);
+        for (i, band) in config.bands.iter().take(num_bands).enumerate() {
             if !band.enabled {
                 self.filters[i].set_params(BiquadParams::identity());
                 continue;
@@ -123,6 +124,11 @@ impl ParametricEq {
             );
 
             self.filters[i].set_params(params);
+        }
+
+        // Reset any unused bands beyond config.bands.len() to identity passthrough
+        for i in num_bands..MAX_BANDS {
+            self.filters[i].set_params(BiquadParams::identity());
         }
 
         self.set_macro_tones(config.bass_db, config.voice_db, config.treble_db);
@@ -227,6 +233,33 @@ mod tests {
         eq.process(&mut buffer);
         for &sample in &buffer {
             assert!(!sample.is_nan());
+        }
+    }
+
+    #[test]
+    fn test_reset_unused_bands() {
+        let mut eq = ParametricEq::new(48000.0);
+        // Start with 10 bands with high boost
+        let mut cfg10 = EqConfig::flat_10_band();
+        for band in &mut cfg10.bands {
+            band.gain_db = 12.0;
+        }
+        eq.update_config(&cfg10);
+
+        // Update with only 3 flat bands
+        let cfg3 = EqConfig {
+            enabled: true,
+            bands: cfg10.bands[..3].to_vec(),
+            bass_db: 0.0,
+            voice_db: 0.0,
+            treble_db: 0.0,
+            input_gain_db: 0.0,
+        };
+        eq.update_config(&cfg3);
+
+        // Bands 3..10 must have been reset to identity
+        for i in 3..MAX_BANDS {
+            assert_eq!(eq.filters[i].target_params(), BiquadParams::identity());
         }
     }
 }

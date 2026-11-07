@@ -266,7 +266,7 @@ impl Default for LimiterConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            ceiling_db: -1.0,
+            ceiling_db: -0.5,
             release_ms: 50.0,
         }
     }
@@ -467,6 +467,52 @@ impl BiquadCoefficients {
         }
     }
 
+    /// Calculates notch (band-reject) filter coefficients using RBJ Audio EQ Cookbook formulas.
+    #[must_use]
+    pub fn notch(freq: f32, q: f32, sample_rate: f32) -> Self {
+        use std::f32::consts::PI;
+        let sr = if sample_rate > 0.0 { sample_rate } else { 48000.0 };
+        let w0 = 2.0 * PI * freq / sr;
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / (2.0 * q.max(0.001));
+
+        let b0 = 1.0;
+        let b1 = -2.0 * cos_w0;
+        let b2 = 1.0;
+        let a0 = 1.0 + alpha;
+        let a1 = -2.0 * cos_w0;
+        let a2 = 1.0 - alpha;
+
+        Self {
+            b0,
+            b1,
+            b2,
+            a0,
+            a1,
+            a2,
+        }
+    }
+
+    /// Computes biquad filter coefficients for any supported filter type.
+    #[must_use]
+    pub fn compute(
+        filter_type: FilterType,
+        freq: f32,
+        q: f32,
+        gain_db: f32,
+        sample_rate: f32,
+    ) -> Self {
+        match filter_type {
+            FilterType::Peak => Self::peaking(freq, q, gain_db, sample_rate),
+            FilterType::LowShelf => Self::low_shelf(freq, q, gain_db, sample_rate),
+            FilterType::HighShelf => Self::high_shelf(freq, q, gain_db, sample_rate),
+            FilterType::LowPass => Self::low_pass(freq, q, sample_rate),
+            FilterType::HighPass => Self::high_pass(freq, q, sample_rate),
+            FilterType::Notch => Self::notch(freq, q, sample_rate),
+        }
+    }
+
     /// Computes the magnitude response in decibels (dB) at a given frequency.
     #[must_use]
     pub fn magnitude_response_db(&self, freq: f32, sample_rate: f32) -> f32 {
@@ -662,6 +708,18 @@ mod tests {
         assert!(lp.magnitude_response_db(100.0, sr).abs() < 0.5);
         // LPF attenuates 10 kHz
         assert!(lp.magnitude_response_db(10000.0, sr) < -30.0);
+    }
+
+    #[test]
+    fn test_notch_magnitude_response() {
+        let sr = 48000.0;
+        let notch = BiquadCoefficients::notch(1000.0, 5.0, sr);
+
+        // Notch rejects center frequency (1000 Hz)
+        assert!(notch.magnitude_response_db(1000.0, sr) < -30.0);
+        // Notch passes frequencies well away from notch center
+        assert!(notch.magnitude_response_db(100.0, sr).abs() < 0.5);
+        assert!(notch.magnitude_response_db(10000.0, sr).abs() < 0.5);
     }
 
     #[test]

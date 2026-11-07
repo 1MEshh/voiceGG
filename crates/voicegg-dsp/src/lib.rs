@@ -12,6 +12,7 @@ pub mod gate;
 pub mod limiter;
 pub mod meter;
 pub mod noise;
+pub mod spatial;
 
 pub use biquad::{BiquadFilter, BiquadParams};
 pub use compressor::Compressor;
@@ -20,3 +21,4 @@ pub use gate::NoiseGate;
 pub use limiter::Limiter;
 pub use meter::VUMeter;
 pub use noise::NoiseSuppressor;
+pub use spatial::SpatialProcessor;

@@ -47,8 +47,8 @@ impl BiquadParams {
     ) -> Self {
         use std::f32::consts::PI;
 
-        let nyquist = sample_rate * 0.5;
-        let clamped_freq = freq_hz.clamp(10.0, nyquist - 10.0);
+        let nyquist = sample_rate * 0.49;
+        let clamped_freq = freq_hz.clamp(20.0, nyquist);
         let omega = 2.0 * PI * clamped_freq / sample_rate;
         let sin_omega = omega.sin();
         let cos_omega = omega.cos();
@@ -125,10 +125,12 @@ impl BiquadParams {
     }
 }
 
-/// A biquad filter instance with internal state memory.
+/// A biquad filter instance with internal state memory and parameter smoothing.
 #[derive(Debug, Clone, Copy)]
 pub struct BiquadFilter {
     params: BiquadParams,
+    target_params: BiquadParams,
+    ramp_remaining: usize,
     // Delay registers for Direct Form II Transposed
     s1: f32,
     s2: f32,
@@ -146,18 +148,38 @@ impl BiquadFilter {
     pub const fn new(params: BiquadParams) -> Self {
         Self {
             params,
+            target_params: params,
+            ramp_remaining: 0,
             s1: 0.0,
             s2: 0.0,
         }
     }
 
-    /// Updates the filter coefficients.
-    pub fn set_params(&mut self, params: BiquadParams) {
-        self.params = params;
+    /// Returns the target filter coefficients.
+    #[must_use]
+    pub fn target_params(&self) -> BiquadParams {
+        self.target_params
     }
 
-    /// Resets the filter's internal history state to zero.
+    /// Returns the current active filter coefficients.
+    #[must_use]
+    pub fn params(&self) -> BiquadParams {
+        self.params
+    }
+
+    /// Updates the filter coefficients with a smooth crossfade ramp to prevent audio clicks.
+    pub fn set_params(&mut self, params: BiquadParams) {
+        if self.params == params && self.ramp_remaining == 0 {
+            return;
+        }
+        self.target_params = params;
+        self.ramp_remaining = 128; // Smooth ramp over ~2.6 ms @ 48 kHz
+    }
+
+    /// Resets the filter's internal history state to zero and finishes any active ramp.
     pub fn reset(&mut self) {
+        self.params = self.target_params;
+        self.ramp_remaining = 0;
         self.s1 = 0.0;
         self.s2 = 0.0;
     }
@@ -165,6 +187,18 @@ impl BiquadFilter {
     /// Processes a single audio sample (Direct Form II Transposed).
     #[inline(always)]
     pub fn process_sample(&mut self, input: f32) -> f32 {
+        if self.ramp_remaining > 0 {
+            let step = 1.0 / (self.ramp_remaining as f32);
+            self.params.b0 += (self.target_params.b0 - self.params.b0) * step;
+            self.params.b1 += (self.target_params.b1 - self.params.b1) * step;
+            self.params.b2 += (self.target_params.b2 - self.params.b2) * step;
+            self.params.a1 += (self.target_params.a1 - self.params.a1) * step;
+            self.params.a2 += (self.target_params.a2 - self.params.a2) * step;
+            self.ramp_remaining -= 1;
+            if self.ramp_remaining == 0 {
+                self.params = self.target_params;
+            }
+        }
         let output = self.params.b0 * input + self.s1;
         self.s1 = self.params.b1 * input - self.params.a1 * output + self.s2;
         self.s2 = self.params.b2 * input - self.params.a2 * output;

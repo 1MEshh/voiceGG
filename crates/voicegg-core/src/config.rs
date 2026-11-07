@@ -26,6 +26,10 @@ fn default_language() -> String {
     "en".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_personal_mix() -> HashMap<ChannelId, bool> {
     let mut map = HashMap::new();
     for channel in [
@@ -148,6 +152,12 @@ pub struct VoiceggConfig {
     /// Individual application volume overrides (binary_name -> volume percentage 0..150).
     #[serde(default)]
     pub app_volumes: HashMap<String, u8>,
+    /// Individual application mute overrides (binary_name -> muted bool).
+    #[serde(default)]
+    pub app_muted: HashMap<String, bool>,
+    /// Whether closing window minimizes to background tray (true) or quits (false).
+    #[serde(default = "default_true")]
+    pub close_to_tray: bool,
     /// Whether streamer dual-mix mode is active.
     #[serde(default)]
     pub streamer_mode: bool,
@@ -181,10 +191,17 @@ impl Default for VoiceggConfig {
         ] {
             volumes.insert(channel, 100);
             muted.insert(channel, false);
-            active_presets.insert(channel, "flat".to_string());
             personal_mix.insert(channel, true);
             stream_mix.insert(channel, true);
         }
+
+        active_presets.insert(ChannelId::Master, "flat".to_string());
+        active_presets.insert(ChannelId::Game, "game_flat".to_string());
+        active_presets.insert(ChannelId::Chat, "chat_flat".to_string());
+        active_presets.insert(ChannelId::Media, "media_flat".to_string());
+        active_presets.insert(ChannelId::Aux, "aux_flat".to_string());
+        active_presets.insert(ChannelId::Mic, "mic_broadcast".to_string());
+        active_presets.insert(ChannelId::StreamMix, "flat".to_string());
 
         // Sensible default routing rules
         let routing_rules = vec![
@@ -240,6 +257,8 @@ impl Default for VoiceggConfig {
             theme: ThemeConfig::default(),
             custom_presets: HashMap::new(),
             app_volumes: HashMap::new(),
+            app_muted: HashMap::new(),
+            close_to_tray: true,
             streamer_mode: false,
             personal_mix,
             stream_mix,
@@ -256,15 +275,69 @@ impl VoiceggConfig {
         calculate_chatmix_volume(channel, base_vol, self.chatmix)
     }
 
-    /// Returns the configured volume for a given application binary (defaults to 100).
+    /// Returns the configured volume for a given application binary (case-insensitive, clamped to 0..=150, defaults to 100).
     #[must_use]
     pub fn get_app_volume(&self, binary_name: &str) -> u8 {
-        self.app_volumes.get(binary_name).copied().unwrap_or(100)
+        let clean = binary_name.trim();
+        for (k, &v) in &self.app_volumes {
+            if k.eq_ignore_ascii_case(clean) {
+                return v.min(150);
+            }
+        }
+        100
     }
 
-    /// Sets the volume override for a given application binary.
+    /// Sets the volume override for a given application binary (case-insensitive, clamped to 0..=150).
     pub fn set_app_volume(&mut self, binary_name: String, volume: u8) {
-        self.app_volumes.insert(binary_name, volume);
+        let clean = binary_name.trim();
+        let vol = volume.min(150);
+        if let Some(existing_key) = self
+            .app_volumes
+            .keys()
+            .find(|k| k.eq_ignore_ascii_case(clean))
+            .cloned()
+        {
+            self.app_volumes.insert(existing_key, vol);
+        } else {
+            self.app_volumes.insert(clean.to_string(), vol);
+        }
+    }
+
+    /// Returns whether a given application binary is muted (case-insensitive, defaults to false).
+    #[must_use]
+    pub fn get_app_mute(&self, binary_name: &str) -> bool {
+        let clean = binary_name.trim();
+        for (k, &v) in &self.app_muted {
+            if k.eq_ignore_ascii_case(clean) {
+                return v;
+            }
+        }
+        false
+    }
+
+    /// Sets the mute status for a given application binary (case-insensitive).
+    pub fn set_app_mute(&mut self, binary_name: String, muted: bool) {
+        let clean = binary_name.trim();
+        if let Some(existing_key) = self
+            .app_muted
+            .keys()
+            .find(|k| k.eq_ignore_ascii_case(clean))
+            .cloned()
+        {
+            self.app_muted.insert(existing_key, muted);
+        } else {
+            self.app_muted.insert(clean.to_string(), muted);
+        }
+    }
+
+    /// Sets auto game detection enabled.
+    pub fn set_auto_game_detection(&mut self, enabled: bool) {
+        self.auto_game_detection = enabled;
+    }
+
+    /// Sets close-to-tray window behavior.
+    pub fn set_close_to_tray(&mut self, enabled: bool) {
+        self.close_to_tray = enabled;
     }
     /// Returns the standard config file path ($XDG_CONFIG_HOME/voicegg/config.toml).
     #[must_use]
@@ -367,5 +440,32 @@ mod tests {
             assert_eq!(config.stream_mix.get(&channel), Some(&true));
             assert!(config.favorite_presets.contains_key(&channel));
         }
+    }
+
+    #[test]
+    fn test_default_preset_ids() {
+        let config = VoiceggConfig::default();
+        assert_eq!(config.active_presets.get(&ChannelId::Game), Some(&"game_flat".to_string()));
+        assert_eq!(config.active_presets.get(&ChannelId::Chat), Some(&"chat_flat".to_string()));
+        assert_eq!(config.active_presets.get(&ChannelId::Media), Some(&"media_flat".to_string()));
+        assert_eq!(config.active_presets.get(&ChannelId::Aux), Some(&"aux_flat".to_string()));
+        assert_eq!(config.active_presets.get(&ChannelId::Mic), Some(&"mic_broadcast".to_string()));
+        assert!(config.close_to_tray);
+    }
+
+    #[test]
+    fn test_app_volume_and_mute_case_insensitivity() {
+        let mut config = VoiceggConfig::default();
+        config.set_app_volume("Discord".to_string(), 120);
+        assert_eq!(config.get_app_volume("discord"), 120);
+        assert_eq!(config.get_app_volume("DISCORD"), 120);
+
+        config.set_app_mute("Spotify".to_string(), true);
+        assert!(config.get_app_mute("spotify"));
+        assert!(config.get_app_mute("SPOTIFY"));
+
+        // Overwrite volume clamped to 150
+        config.set_app_volume("discord".to_string(), 200);
+        assert_eq!(config.get_app_volume("Discord"), 150);
     }
 }
