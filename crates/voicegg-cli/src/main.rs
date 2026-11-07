@@ -9,8 +9,12 @@ use voicegg_ipc::{IpcClient, IpcRequest, IpcResponse};
 #[command(name = "voicegg")]
 #[command(about = "High-performance PipeWire audio mixer and DSP controller")]
 struct Cli {
+    /// Hidden watchdog listening on stdin pipe
+    #[arg(long = "janitor-watch", hide = true, num_args = 0..=2)]
+    janitor_watch_flag: Option<Vec<String>>,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -25,6 +29,19 @@ enum Commands {
     },
     /// Emergency panic reset of all virtual audio devices.
     Panic,
+    /// Watchdog listening on daemon stdin pipe; cleans up graph if daemon terminates abruptly.
+    #[command(name = "janitor-watch", hide = true)]
+    JanitorWatch {
+        /// Fallback physical sink name.
+        #[arg(long)]
+        phys_sink: Option<String>,
+        /// Fallback physical source name.
+        #[arg(long)]
+        phys_source: Option<String>,
+        /// Positional fallback arguments (e.g. `voicegg janitor-watch <sink> <source>`).
+        #[arg(trailing_var_arg = true)]
+        pos_args: Vec<String>,
+    },
 }
 
 #[derive(Args)]
@@ -85,13 +102,48 @@ enum CtlAction {
         #[arg(default_value = "game")]
         channel: ChannelId,
     },
+    /// Mute or unmute an individual application stream.
+    MuteApp {
+        /// Application binary name.
+        binary: String,
+        /// Mute state (toggle, on, off).
+        #[arg(default_value = "toggle")]
+        state: String,
+    },
+    /// Reset an equalizer preset to factory defaults.
+    ResetPreset {
+        /// Channel to adjust (game, chat, media, aux, mic).
+        channel: ChannelId,
+        /// Preset identifier (e.g. game_flat, mic_broadcast).
+        preset_id: String,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Commands::Panic = cli.command {
+    if let Some(args) = cli.janitor_watch_flag {
+        let sink = args.first().cloned();
+        let source = args.get(1).cloned();
+        return run_janitor_watch(sink, source);
+    }
+
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            println!("Usage: voicegg <COMMAND>");
+            return Ok(());
+        }
+    };
+
+    if let Commands::JanitorWatch { phys_sink, phys_source, pos_args } = command {
+        let sink = phys_sink.or_else(|| pos_args.first().cloned());
+        let source = phys_source.or_else(|| pos_args.get(1).cloned());
+        return run_janitor_watch(sink, source);
+    }
+
+    if let Commands::Panic = command {
         if let Ok(mut client) = IpcClient::connect_default().await {
             let _ = client.request(IpcRequest::PanicReset).await;
         } else {
@@ -108,8 +160,8 @@ async fn main() -> Result<()> {
         }
     };
 
-    match cli.command {
-        Commands::Panic => unreachable!(),
+    match command {
+        Commands::Panic | Commands::JanitorWatch { .. } => unreachable!(),
         Commands::Status { json } => match client.request(IpcRequest::GetStatus).await? {
             IpcResponse::Status(status) => {
                 if json {
@@ -272,8 +324,217 @@ async fn main() -> Result<()> {
                     _ => (),
                 }
             }
+            CtlAction::MuteApp { binary, state } => {
+                let muted = match state.to_lowercase().as_str() {
+                    "on" | "true" | "1" => true,
+                    "off" | "false" | "0" => false,
+                    _ => true,
+                };
+                match client
+                    .request(IpcRequest::SetAppMute {
+                        binary_name: binary.clone(),
+                        muted,
+                    })
+                    .await?
+                {
+                    IpcResponse::Success => {
+                        println!(
+                            "Application '{}' is now {}",
+                            binary,
+                            if muted { "MUTED" } else { "UNMUTED" }
+                        );
+                    }
+                    IpcResponse::Error(e) => eprintln!("Error: {e}"),
+                    _ => (),
+                }
+            }
+            CtlAction::ResetPreset { channel, preset_id } => {
+                match client
+                    .request(IpcRequest::ResetPreset {
+                        channel,
+                        preset_id: preset_id.clone(),
+                    })
+                    .await?
+                {
+                    IpcResponse::Success => {
+                        println!("Reset preset '{}' on {} to factory default", preset_id, channel);
+                    }
+                    IpcResponse::Error(e) => eprintln!("Error: {e}"),
+                    _ => (),
+                }
+            }
         },
     }
 
     Ok(())
+}
+
+fn run_janitor_watch(phys_sink: Option<String>, phys_source: Option<String>) -> Result<()> {
+    use std::io::BufRead;
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock();
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        match handle.read_line(&mut line) {
+            Ok(0) => {
+                // Pipe reached EOF without receiving "CLEAN" -> daemon terminated abruptly!
+                eprintln!("[voicegg-janitor] Daemon disconnected abruptly (pipe EOF). Triggering emergency audio restoration!");
+                emergency_cleanup_and_restore(phys_sink.as_deref(), phys_source.as_deref());
+                std::process::exit(0);
+            }
+            Ok(_) => {
+                let trimmed = line.trim();
+                if trimmed == "CLEAN" {
+                    // Normal clean shutdown of voicegg-daemon
+                    std::process::exit(0);
+                }
+            }
+            Err(e) => {
+                eprintln!("[voicegg-janitor] Stdin read error: {e}. Restoring audio...");
+                emergency_cleanup_and_restore(phys_sink.as_deref(), phys_source.as_deref());
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+fn emergency_cleanup_and_restore(phys_sink: Option<&str>, phys_source: Option<&str>) {
+    // 1. Immediately switch PipeWire defaults back to physical hardware
+    if let Some(sink) = phys_sink {
+        let _ = std::process::Command::new("pactl")
+            .args(["set-default-sink", sink])
+            .status();
+    }
+    if let Some(source) = phys_source {
+        let _ = std::process::Command::new("pactl")
+            .args(["set-default-source", source])
+            .status();
+    }
+
+    // 2. Unload all voicegg modules and kill orphaned DSP processes
+    voicegg_pw::GraphManager::cleanup_stale_modules();
+
+    // 3. Move active sink-inputs to physical sink
+    if let Some(sink) = phys_sink {
+        if let Ok(output) = std::process::Command::new("pactl").args(["list", "sink-inputs", "short"]).output() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if let Some(id_str) = line.split_whitespace().next() {
+                    let _ = std::process::Command::new("pactl")
+                        .args(["move-sink-input", id_str, sink])
+                        .status();
+                }
+            }
+        }
+    }
+
+    // 4. Move active source-outputs to physical source
+    if let Some(source) = phys_source {
+        if let Ok(output) = std::process::Command::new("pactl").args(["list", "source-outputs", "short"]).output() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if let Some(id_str) = line.split_whitespace().next() {
+                    let _ = std::process::Command::new("pactl")
+                        .args(["move-source-output", id_str, source])
+                        .status();
+                }
+            }
+        }
+    }
+
+    // 5. Scrub WirePlumber persistence files
+    scrub_wireplumber();
+}
+
+fn scrub_wireplumber() {
+    if let Some(data_home) = dirs::data_local_dir() {
+        let wp_dir = data_home.join("wireplumber");
+        if wp_dir.exists() {
+            let targets = ["stream-properties", "default-nodes", "restore-stream"];
+            for target in &targets {
+                let path = wp_dir.join(target);
+                if path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if content.contains("voicegg_") || content.contains("VoiceGG") {
+                            let cleaned: Vec<&str> = content
+                                .lines()
+                                .filter(|line| !line.contains("voicegg_") && !line.contains("VoiceGG"))
+                                .collect();
+                            let _ = std::fs::write(&path, cleaned.join("\n"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_janitor_watch_flag_parsing() {
+        let cli = Cli::try_parse_from(["voicegg", "--janitor-watch", "my_sink", "my_source"])
+            .expect("Parse failed");
+        assert_eq!(
+            cli.janitor_watch_flag,
+            Some(vec!["my_sink".to_string(), "my_source".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_janitor_watch_subcommand_parsing() {
+        let cli = Cli::try_parse_from([
+            "voicegg",
+            "janitor-watch",
+            "--phys-sink",
+            "test_sink",
+            "--phys-source",
+            "test_source",
+        ])
+        .expect("Parse failed");
+        match cli.command {
+            Some(Commands::JanitorWatch {
+                phys_sink,
+                phys_source,
+                ..
+            }) => {
+                assert_eq!(phys_sink.as_deref(), Some("test_sink"));
+                assert_eq!(phys_source.as_deref(), Some("test_source"));
+            }
+            _ => panic!("Expected JanitorWatch subcommand"),
+        }
+    }
+
+    #[test]
+    fn test_ctl_actions_parsing() {
+        let cli = Cli::try_parse_from(["voicegg", "ctl", "mute-app", "discord", "on"])
+            .expect("Parse failed");
+        match cli.command {
+            Some(Commands::Ctl(ctl)) => match ctl.action {
+                CtlAction::MuteApp { binary, state } => {
+                    assert_eq!(binary, "discord");
+                    assert_eq!(state, "on");
+                }
+                _ => panic!("Expected MuteApp"),
+            },
+            _ => panic!("Expected Ctl"),
+        }
+
+        let cli = Cli::try_parse_from(["voicegg", "ctl", "reset-preset", "game", "game_flat"])
+            .expect("Parse failed");
+        match cli.command {
+            Some(Commands::Ctl(ctl)) => match ctl.action {
+                CtlAction::ResetPreset { channel, preset_id } => {
+                    assert_eq!(channel, ChannelId::Game);
+                    assert_eq!(preset_id, "game_flat");
+                }
+                _ => panic!("Expected ResetPreset"),
+            },
+            _ => panic!("Expected Ctl"),
+        }
+    }
 }

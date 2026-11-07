@@ -156,6 +156,35 @@ pub enum IpcRequest {
         /// Buffer quantum size.
         quantum: u32,
     },
+    /// Register GUI client PID for lifecycle tethering.
+    RegisterClientPid {
+        /// Client process ID.
+        pid: u32,
+    },
+    /// Set auto game detection enabled or disabled.
+    SetAutoGameDetection {
+        /// Whether auto game detection is enabled.
+        enabled: bool,
+    },
+    /// Set close-to-tray window behavior.
+    SetCloseToTray {
+        /// Whether closing the window minimizes to tray instead of exiting.
+        enabled: bool,
+    },
+    /// Set mute status for a specific application stream.
+    SetAppMute {
+        /// Application binary name.
+        binary_name: String,
+        /// Mute state.
+        muted: bool,
+    },
+    /// Reset a built-in preset to its factory defaults.
+    ResetPreset {
+        /// Target channel.
+        channel: ChannelId,
+        /// Preset ID to reset.
+        preset_id: String,
+    },
 }
 
 /// Responses returned from Daemon to Client.
@@ -335,5 +364,20 @@ mod tests {
 
         let req_del = IpcRequest::DeleteCustomPreset { preset_id: "custom_123".to_string() };
         assert_eq!(req_del, serde_json::from_str(&serde_json::to_string(&req_del).unwrap()).unwrap());
+
+        let req_pid = IpcRequest::RegisterClientPid { pid: 12345 };
+        assert_eq!(req_pid, serde_json::from_str(&serde_json::to_string(&req_pid).unwrap()).unwrap());
+
+        let req_auto_game = IpcRequest::SetAutoGameDetection { enabled: true };
+        assert_eq!(req_auto_game, serde_json::from_str(&serde_json::to_string(&req_auto_game).unwrap()).unwrap());
+
+        let req_tray = IpcRequest::SetCloseToTray { enabled: false };
+        assert_eq!(req_tray, serde_json::from_str(&serde_json::to_string(&req_tray).unwrap()).unwrap());
+
+        let req_mute = IpcRequest::SetAppMute { binary_name: "discord".to_string(), muted: true };
+        assert_eq!(req_mute, serde_json::from_str(&serde_json::to_string(&req_mute).unwrap()).unwrap());
+
+        let req_reset = IpcRequest::ResetPreset { channel: ChannelId::Game, preset_id: "game_flat".to_string() };
+        assert_eq!(req_reset, serde_json::from_str(&serde_json::to_string(&req_reset).unwrap()).unwrap());
     }
 }

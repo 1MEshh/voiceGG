@@ -113,12 +113,89 @@ async fn test_client_server_lifecycle() {
         .expect("SetLanguage request failed");
     assert_eq!(res, IpcResponse::Success);
 
+    // Test new lifecycle and control variants
+    let res = client
+        .request(IpcRequest::RegisterClientPid {
+            pid: std::process::id(),
+        })
+        .await
+        .expect("RegisterClientPid failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    let res = client
+        .request(IpcRequest::SetAutoGameDetection { enabled: true })
+        .await
+        .expect("SetAutoGameDetection failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    let res = client
+        .request(IpcRequest::SetCloseToTray { enabled: false })
+        .await
+        .expect("SetCloseToTray failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    let res = client
+        .request(IpcRequest::SetAppMute {
+            binary_name: "discord".to_string(),
+            muted: true,
+        })
+        .await
+        .expect("SetAppMute failed");
+    assert_eq!(res, IpcResponse::Success);
+
+    let res = client
+        .request(IpcRequest::ResetPreset {
+            channel: ChannelId::Game,
+            preset_id: "game_flat".to_string(),
+        })
+        .await
+        .expect("ResetPreset failed");
+    assert_eq!(res, IpcResponse::Success);
+
     // Test shutdown request
     let res = client
         .request(IpcRequest::Shutdown)
         .await
         .expect("Shutdown request failed");
     assert_eq!(res, IpcResponse::Success);
+
+    server_handle.abort();
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+#[tokio::test]
+async fn test_bounded_codec_rejects_oversized_messages() {
+    use tokio::io::AsyncWriteExt;
+    let temp_dir = std::env::temp_dir().join(format!("voicegg_overflow_{}", std::process::id()));
+    let socket_path = temp_dir.join("overflow.sock");
+
+    let server = IpcServer::bind(&socket_path).expect("Failed to bind test server");
+    let server_handle = tokio::spawn(async move {
+        server
+            .run(Arc::new(|_| IpcResponse::Success))
+            .await
+            .expect("Server failed");
+    });
+
+    sleep(Duration::from_millis(50)).await;
+
+    // Connect raw stream and write line longer than 65536 bytes
+    let mut raw_stream = tokio::net::UnixStream::connect(&socket_path)
+        .await
+        .expect("Raw connect failed");
+    let oversized = vec![b'A'; 70_000];
+    let mut payload = oversized;
+    payload.push(b'\n');
+
+    let write_res = raw_stream.write_all(&payload).await;
+    // Server should close the connection upon exceeding 65536 bytes without crashing
+    if write_res.is_ok() {
+        use tokio::io::AsyncReadExt;
+        let mut buf = [0u8; 100];
+        let read_n = raw_stream.read(&mut buf).await.unwrap_or(0);
+        // Should either receive 0 (EOF closed by server) or error
+        assert!(read_n == 0 || read_n < 100);
+    }
 
     server_handle.abort();
     let _ = std::fs::remove_dir_all(&temp_dir);

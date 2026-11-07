@@ -17,9 +17,18 @@ impl IpcClient {
     /// Connects to the daemon at the specified socket path.
     pub async fn connect<P: AsRef<Path>>(socket_path: P) -> Result<Self> {
         let stream = UnixStream::connect(socket_path).await?;
+        let peer_cred = stream.peer_cred().map_err(IpcError::Io)?;
+        let peer_uid = peer_cred.uid();
+        let expected_uid = crate::current_process_uid().map_err(IpcError::Io)?;
+        if peer_uid != expected_uid {
+            return Err(IpcError::ServerError(format!(
+                "Daemon peer UID mismatch: expected {expected_uid}, received {peer_uid}"
+            )));
+        }
+
         let (read_half, write_half) = stream.into_split();
-        let writer = FramedWrite::new(write_half, LinesCodec::new());
-        let reader = FramedRead::new(read_half, LinesCodec::new());
+        let writer = FramedWrite::new(write_half, LinesCodec::new_with_max_length(65_536));
+        let reader = FramedRead::new(read_half, LinesCodec::new_with_max_length(65_536));
         Ok(Self { writer, reader })
     }
 

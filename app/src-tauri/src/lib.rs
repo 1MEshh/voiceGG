@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use voicegg_core::{ChannelId, PluginCapabilities, Preset};
@@ -13,26 +14,63 @@ use voicegg_pw::AudioDevice;
 
 struct IpcState {
     client: Mutex<Option<IpcClient>>,
+    shutting_down: AtomicBool,
+    close_to_tray: AtomicBool,
+}
+
+impl Default for IpcState {
+    fn default() -> Self {
+        Self {
+            client: Mutex::new(None),
+            shutting_down: AtomicBool::new(false),
+            close_to_tray: AtomicBool::new(true),
+        }
+    }
 }
 
 impl IpcState {
     async fn send_request(&self, req: IpcRequest) -> Result<IpcResponse, String> {
+        // Immediate guard against sending requests (or spawning daemon) during shutdown
+        if self.shutting_down.load(Ordering::Relaxed) {
+            return Err("Application is shutting down".into());
+        }
+
         let mut lock = self.client.lock().await;
+
+        if self.shutting_down.load(Ordering::Relaxed) {
+            return Err("Application is shutting down".into());
+        }
 
         if lock.is_none() {
             match IpcClient::connect_default().await {
-                Ok(c) => *lock = Some(c),
+                Ok(mut c) => {
+                    let pid = std::process::id();
+                    let _ = c.request(IpcRequest::RegisterClientPid { pid }).await;
+                    *lock = Some(c);
+                }
                 Err(_) => {
+                    if self.shutting_down.load(Ordering::Relaxed) {
+                        return Err("Application is shutting down".into());
+                    }
+
                     // Attempt to start the daemon if not running
                     let _ = Command::new("voicegg-daemon").spawn();
                     sleep(Duration::from_millis(400)).await;
 
+                    if self.shutting_down.load(Ordering::Relaxed) {
+                        return Err("Application is shutting down".into());
+                    }
+
                     match IpcClient::connect_default().await {
-                        Ok(c) => *lock = Some(c),
+                        Ok(mut c) => {
+                            let pid = std::process::id();
+                            let _ = c.request(IpcRequest::RegisterClientPid { pid }).await;
+                            *lock = Some(c);
+                        }
                         Err(e) => {
                             return Err(format!(
                                 "Could not connect to voicegg-daemon: {e}. Is PipeWire running?"
-                            ))
+                            ));
                         }
                     }
                 }
@@ -43,9 +81,14 @@ impl IpcState {
             match client.request(req.clone()).await {
                 Ok(res) => Ok(res),
                 Err(_) => {
+                    if self.shutting_down.load(Ordering::Relaxed) {
+                        return Err("Application is shutting down".into());
+                    }
                     // Reconnect attempt on broken pipe
                     *lock = None;
                     if let Ok(mut c) = IpcClient::connect_default().await {
+                        let pid = std::process::id();
+                        let _ = c.request(IpcRequest::RegisterClientPid { pid }).await;
                         let res = c.request(req).await.map_err(|e| e.to_string())?;
                         *lock = Some(c);
                         Ok(res)
@@ -114,7 +157,15 @@ async fn set_preset(
     state: State<'_, IpcState>,
 ) -> Result<(), String> {
     let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
-    let preset = Preset::get_preset_by_id(&preset_id)
+    let custom_preset = if let Ok(IpcResponse::Status(status)) =
+        state.send_request(IpcRequest::GetStatus).await
+    {
+        status.config.custom_presets.get(&preset_id).cloned()
+    } else {
+        None
+    };
+    let preset = custom_preset
+        .or_else(|| Preset::get_preset_by_id(&preset_id))
         .ok_or_else(|| format!("Preset '{preset_id}' not found"))?;
 
     match state
@@ -406,19 +457,222 @@ async fn set_quantum(quantum: u32, state: State<'_, IpcState>) -> Result<(), Str
     }
 }
 
+#[tauri::command]
+async fn set_auto_game_detection(
+    enabled: bool,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetAutoGameDetection { enabled })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn set_close_to_tray(
+    enabled: bool,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    state.close_to_tray.store(enabled, Ordering::Relaxed);
+    match state
+        .send_request(IpcRequest::SetCloseToTray { enabled })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn set_app_mute(
+    binary_name: String,
+    muted: bool,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    match state
+        .send_request(IpcRequest::SetAppMute {
+            binary_name,
+            muted,
+        })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+#[tauri::command]
+async fn reset_preset(
+    channel: String,
+    preset_id: String,
+    state: State<'_, IpcState>,
+) -> Result<(), String> {
+    let ch = ChannelId::from_str(&channel).map_err(|e| e.to_string())?;
+    match state
+        .send_request(IpcRequest::ResetPreset {
+            channel: ch,
+            preset_id,
+        })
+        .await?
+    {
+        IpcResponse::Success => Ok(()),
+        IpcResponse::Error(e) => Err(e),
+        _ => Err("Unexpected response from daemon".into()),
+    }
+}
+
+fn kill_voicegg_daemon_processes() {
+    if let Ok(entries) = std::fs::read_dir("/proc") {
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            let pid_str = file_name.to_string_lossy();
+            if !pid_str.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            let comm_path = entry.path().join("comm");
+            if let Ok(comm) = std::fs::read_to_string(&comm_path) {
+                if comm.trim() == "voicegg-daemon" {
+                    let _ = Command::new("kill").args(["-9", &pid_str]).status();
+                }
+            }
+        }
+    }
+}
+
+fn gui_socket_path() -> std::path::PathBuf {
+    if let Some(runtime_dir) = dirs::runtime_dir() {
+        runtime_dir.join("voicegg").join("gui.sock")
+    } else {
+        std::path::PathBuf::from("/tmp/voicegg-gui.sock")
+    }
+}
+
+fn ensure_single_instance_or_focus() -> bool {
+    let socket_path = gui_socket_path();
+
+    if let Some(parent) = socket_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    if socket_path.exists() {
+        if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&socket_path) {
+            use std::io::Write;
+            let _ = stream.write_all(b"FOCUS\n");
+            let _ = stream.flush();
+            return false;
+        }
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    true
+}
+
+async fn perform_full_shutdown(app: &tauri::AppHandle) {
+    let state = app.state::<IpcState>();
+
+    // 1. FIRST atomic step: gate all requests and prevent any polls from respawning daemon!
+    state.shutting_down.store(true, Ordering::Relaxed);
+
+    // 2. Send Shutdown IPC to voicegg-daemon with a 300ms timeout
+    let _ = tokio::time::timeout(Duration::from_millis(300), async {
+        if let Ok(mut client) = IpcClient::connect_default().await {
+            let _ = client.request(IpcRequest::Shutdown).await;
+        }
+    })
+    .await;
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // 3. Stop systemd user service
+    let _ = Command::new("systemctl")
+        .args(["--user", "stop", "voicegg-daemon.service"])
+        .status();
+
+    // 4. Sweep daemon processes matching exact /proc/<pid>/comm == "voicegg-daemon"
+    kill_voicegg_daemon_processes();
+
+    // 5. Guarantee all voicegg_ PipeWire sinks, loopbacks, and parec/pacat DSP processes are destroyed directly in-process
+    voicegg_pw::GraphManager::cleanup_stale_modules();
+
+    // 6. Clean up GUI socket
+    let _ = std::fs::remove_file(gui_socket_path());
+
+    // 7. Exit GUI process
+    app.exit(0);
+}
+
+#[tauri::command]
+fn hide_window(window: tauri::Window) {
+    let _ = window.hide();
+}
+
+#[tauri::command]
+async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
+    perform_full_shutdown(&app).await;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if !ensure_single_instance_or_focus() {
+        return;
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(IpcState {
-            client: Mutex::new(None),
-        })
+        .manage(IpcState::default())
         .setup(|app| {
             use tauri::{
                 menu::{Menu, MenuItem, PredefinedMenuItem},
                 tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-                Manager,
             };
+
+            // Single-instance GUI listener
+            let socket_path = gui_socket_path();
+            if let Some(parent) = socket_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::remove_file(&socket_path);
+
+            if let Ok(listener) = tokio::net::UnixListener::bind(&socket_path) {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        if let Ok((mut stream, _)) = listener.accept().await {
+                            use tokio::io::AsyncReadExt;
+                            let mut buf = [0u8; 32];
+                            if let Ok(n) = stream.read(&mut buf).await {
+                                if n > 0 {
+                                    if let Some(window) = app_handle.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.unminimize();
+                                        let _ = window.set_focus();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Sync close_to_tray setting from daemon config on startup
+            let init_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state = init_app.state::<IpcState>();
+                if let Ok(IpcResponse::Status(status)) =
+                    state.send_request(IpcRequest::GetStatus).await
+                {
+                    state
+                        .close_to_tray
+                        .store(status.config.close_to_tray, Ordering::Relaxed);
+                }
+            });
 
             let title_i = MenuItem::with_id(
                 app,
@@ -466,10 +720,16 @@ pub fn run() {
                 ],
             )?;
 
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+            // Safe handling for window icon (avoids panicking if icon is missing)
+            let mut tray_builder = TrayIconBuilder::new()
                 .tooltip("VoiceGG Audio Mixer")
-                .menu(&menu)
+                .menu(&menu);
+
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+
+            let _tray = tray_builder
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -491,10 +751,7 @@ pub fn run() {
                     "quit" => {
                         let app_handle = app.clone();
                         tauri::async_runtime::spawn(async move {
-                            let state = app_handle.state::<IpcState>();
-                            let _ = state.send_request(voicegg_ipc::IpcRequest::Shutdown).await;
-                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                            app_handle.exit(0);
+                            perform_full_shutdown(&app_handle).await;
                         });
                     }
                     "toggle_win" => {
@@ -526,6 +783,7 @@ pub fn run() {
                                         muted: !current,
                                     })
                                     .await;
+                                let _ = app_handle.emit("voicegg://status-changed", ());
                             }
                         });
                     }
@@ -548,6 +806,7 @@ pub fn run() {
                                         muted: !current,
                                     })
                                     .await;
+                                let _ = app_handle.emit("voicegg://status-changed", ());
                             }
                         });
                     }
@@ -566,6 +825,7 @@ pub fn run() {
                                         volume: vol,
                                     })
                                     .await;
+                                let _ = app_handle.emit("voicegg://status-changed", ());
                             }
                         });
                     }
@@ -582,12 +842,49 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            let sig_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tokio::signal::unix::{signal, SignalKind};
+                let mut sigterm = signal(SignalKind::terminate()).ok();
+                let mut sigint = signal(SignalKind::interrupt()).ok();
+                tokio::select! {
+                    _ = async {
+                        if let Some(ref mut s) = sigterm {
+                            let _ = s.recv().await;
+                        } else {
+                            std::future::pending::<()>().await;
+                        }
+                    } => {}
+                    _ = async {
+                        if let Some(ref mut s) = sigint {
+                            let _ = s.recv().await;
+                        } else {
+                            std::future::pending::<()>().await;
+                        }
+                    } => {}
+                }
+                perform_full_shutdown(&sig_app).await;
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+                let app = window.app_handle();
+                let state = app.state::<IpcState>();
+                if state.shutting_down.load(Ordering::Relaxed) {
+                    return;
+                }
+                if state.close_to_tray.load(Ordering::Relaxed) {
+                    let _ = window.hide();
+                    api.prevent_close();
+                } else {
+                    api.prevent_close();
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        perform_full_shutdown(&app_handle).await;
+                    });
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -614,7 +911,13 @@ pub fn run() {
             set_channel_color,
             save_custom_preset,
             delete_custom_preset,
-            set_quantum
+            set_quantum,
+            hide_window,
+            quit_app,
+            set_auto_game_detection,
+            set_close_to_tray,
+            set_app_mute,
+            reset_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceGG GUI application");

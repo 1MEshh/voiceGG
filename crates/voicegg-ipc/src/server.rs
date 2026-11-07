@@ -44,8 +44,13 @@ impl IpcServer {
             fs::set_permissions(parent, perms)?;
         }
 
-        // Clean up stale socket if it exists
+        // Clean up stale socket if it exists, or abort if another daemon is active
         if path.exists() {
+            if std::os::unix::net::UnixStream::connect(&path).is_ok() {
+                return Err(IpcError::ServerError(
+                    "Another voicegg-daemon instance is already running on this socket".into(),
+                ));
+            }
             let _ = fs::remove_file(&path);
         }
 
@@ -85,9 +90,19 @@ impl IpcServer {
         stream: UnixStream,
         handler: Arc<H>,
     ) -> Result<()> {
+        let peer_cred = stream.peer_cred().map_err(IpcError::Io)?;
+        let peer_uid = peer_cred.uid();
+        let expected_uid = crate::current_process_uid().map_err(IpcError::Io)?;
+        if peer_uid != expected_uid {
+            tracing::warn!("Unauthorized IPC client: UID {peer_uid} != expected {expected_uid}");
+            return Err(IpcError::ServerError(format!(
+                "Unauthorized client UID: {peer_uid}"
+            )));
+        }
+
         let (read_half, write_half) = stream.into_split();
-        let mut reader = FramedRead::new(read_half, LinesCodec::new());
-        let mut writer = FramedWrite::new(write_half, LinesCodec::new());
+        let mut reader = FramedRead::new(read_half, LinesCodec::new_with_max_length(65_536));
+        let mut writer = FramedWrite::new(write_half, LinesCodec::new_with_max_length(65_536));
 
         while let Some(line) = reader.next().await {
             let line = line.map_err(|e| IpcError::Protocol(e.to_string()))?;
