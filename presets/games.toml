@@ -156,3 +156,8 @@ executables = ["r5apex_steam.exe"]
 name = "Smite 2"
 preset = "game_league"
 executables = ["Smite2.exe"]
+
+[games.palworld]
+name = "Palworld"
+preset = "game_immersive"
+executables = ["Palworld-Win64-Shipping.exe"]
