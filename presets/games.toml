@@ -70,3 +70,14 @@ executables = ["League of Legends.exe"]
 name = "Minecraft"
 preset = "game_minecraft"
 executables = ["minecraft-launcher", "javaw.exe"]
+
+[games.deadlock]
+name = "Deadlock"
+preset = "game_cs2"
+executables = ["project8.exe", "deadlock.exe", "project8"]
+
+[games.marvelrivals]
+name = "Marvel Rivals"
+preset = "game_overwatch2"
+executables = ["MarvelRivals.exe", "marvelrivals.exe"]
+

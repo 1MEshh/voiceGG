@@ -315,6 +315,41 @@ mod tests {
     }
 
     #[test]
+    fn test_match_deadlock() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "project8.exe",
+            "C:\\Steam\\steamapps\\common\\Deadlock\\game\\bin\\win64\\project8.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "deadlock");
+        assert_eq!(game.name, "Deadlock");
+        assert_eq!(game.preset_id, "game_cs2");
+
+        let matched_native = detector.match_executable(
+            "project8",
+            "/home/gamer/.steam/steamapps/common/Deadlock/game/bin/linuxsteamrt64/project8",
+        );
+        assert!(matched_native.is_some());
+        assert_eq!(matched_native.unwrap().id, "deadlock");
+    }
+
+    #[test]
+    fn test_match_marvel_rivals() {
+        let detector = GameDetector::new();
+        let matched = detector.match_executable(
+            "MarvelRivals.exe",
+            "C:\\Steam\\steamapps\\common\\MarvelRivals\\MarvelRivals.exe",
+        );
+        assert!(matched.is_some());
+        let game = matched.unwrap();
+        assert_eq!(game.id, "marvelrivals");
+        assert_eq!(game.name, "Marvel Rivals");
+        assert_eq!(game.preset_id, "game_overwatch2");
+    }
+
+    #[test]
     fn test_no_match_for_browser() {
         let detector = GameDetector::new();
         let matched = detector.match_executable("firefox", "/usr/lib/firefox/firefox");
