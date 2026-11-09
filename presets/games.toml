@@ -166,3 +166,8 @@ executables = ["Palworld-Win64-Shipping.exe"]
 name = "Dead by Daylight"
 preset = "game_footsteps"
 executables = ["DeadByDaylight-Win64-Shipping.exe"]
+
+[games.drg]
+name = "Deep Rock Galactic"
+preset = "game_immersive"
+executables = ["FSD-Win64-Shipping.exe"]
