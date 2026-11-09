@@ -151,3 +151,8 @@ executables = ["Warframe.x64.exe"]
 name = "Apex Legends Variants"
 preset = "game_apex"
 executables = ["r5apex_steam.exe"]
+
+[games.smite2]
+name = "Smite 2"
+preset = "game_league"
+executables = ["Smite2.exe"]
