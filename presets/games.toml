@@ -161,3 +161,8 @@ executables = ["Smite2.exe"]
 name = "Palworld"
 preset = "game_immersive"
 executables = ["Palworld-Win64-Shipping.exe"]
+
+[games.dbd]
+name = "Dead by Daylight"
+preset = "game_footsteps"
+executables = ["DeadByDaylight-Win64-Shipping.exe"]
